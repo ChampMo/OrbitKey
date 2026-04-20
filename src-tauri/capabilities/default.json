@@ -4,6 +4,7 @@
   "windows": ["main", "action-ring"],
   "permissions": [
     "core:default",
+    "dialog:allow-open",
     "core:window:allow-close",
     "core:window:allow-hide",
     "core:window:allow-show",

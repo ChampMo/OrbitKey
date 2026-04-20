@@ -3,104 +3,31 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-
-// 1. Import ไอคอนที่ต้องการใช้มาแบบระบุชื่อตรงๆ (ป้องกัน Vite หั่นโค้ดทิ้ง)
+import { open } from "@tauri-apps/plugin-dialog"; // <--- Import Dialog Plugin
 import {
-  // ── พื้นฐาน & เครื่องมือ ──
   Zap,
-  Search,
-  Settings,
-  Power,
-  Home,
-  LayoutGrid,
-  MousePointer2,
+  Globe,
+  Code2,
   Copy,
   ClipboardPaste,
-  Scissors,
-  Edit3,
-  Trash2,
-  Folder,
-  FolderOpen,
-  Mail,
-  MessageSquare,
-  Calendar,
-  Clock,
-  Calculator,
-  Book,
-
-  // ── อินเทอร์เน็ต & โซเชียล ──
-  Globe,
-  Compass,
-  Cloud,
-  Download,
-  Upload,
-
-  // ── สาย Dev & IT ──
-  Code2,
-  Terminal,
-  FileCode2,
-  Database,
-  Bug,
-  Braces,
-  Command,
-  GitBranch,
-  Shield,
-  Key,
-  Lock,
-  Unlock,
-
-  // ── ฮาร์ดแวร์ & ระบบ ──
-  Monitor,
-  Laptop,
-  Smartphone,
-  Tablet,
-  Keyboard,
-  Mouse,
-  Printer,
-  HardDrive,
-  Cpu,
-  MemoryStick,
+  Camera,
+  Settings,
   Wifi,
-  Bluetooth,
-  Cast,
-  Battery,
-  BatteryCharging,
-
-  // ── สื่อ & ความบันเทิง (Media) ──
+  Volume2,
   Play,
   Pause,
-  Square,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  Volume2,
-  Volume1,
-  VolumeX,
-  Mic,
-  MicOff,
-  Headphones,
-  Speaker,
+  Monitor,
+  Terminal,
+  Folder,
+  Mail,
+  MessageSquare,
+  Cpu,
+  HardDrive,
+  LayoutGrid,
+  MousePointer2,
+  Search,
   Music,
-  Video,
-  Camera,
-  Image,
-
-  // ── แอคชันเพิ่มเติม ──
-  Check,
-  X,
-  Plus,
-  Minus,
-  Maximize,
-  Minimize,
-  RefreshCw,
-  Share2,
-  Star,
-  Heart,
-  Bell,
-  BellOff,
-  User,
-  Users,
+  Power,
 } from "lucide-react";
 
 type ActionTypeValue = "shortcut" | "launch" | "script";
@@ -146,107 +73,32 @@ const ACCENT_PALETTE = [
   "#84cc16",
 ];
 
-// 2. สร้าง Map จับคู่ชื่อ Text กับ Component ไอคอน
-// สร้าง Map จับคู่ชื่อ Text กับ Component ไอคอนแบบจัดเต็ม!
 const ICON_MAP: Record<string, any> = {
-  // พื้นฐาน & เครื่องมือ
   Zap,
-  Search,
-  Settings,
-  Power,
-  Home,
-  LayoutGrid,
-  MousePointer2,
+  Globe,
+  Code2,
   Copy,
   ClipboardPaste,
-  Scissors,
-  Edit3,
-  Trash2,
-  Folder,
-  FolderOpen,
-  Mail,
-  MessageSquare,
-  Calendar,
-  Clock,
-  Calculator,
-  Book,
-
-  // อินเทอร์เน็ต & โซเชียล
-  Globe,
-  Compass,
-  Cloud,
-  Download,
-  Upload,
-
-  // สาย Dev & IT
-  Code2,
-  Terminal,
-  FileCode2,
-  Database,
-  Bug,
-  Braces,
-  Command,
-  GitBranch,
-  Shield,
-  Key,
-  Lock,
-  Unlock,
-
-  // ฮาร์ดแวร์ & ระบบ
-  Monitor,
-  Laptop,
-  Smartphone,
-  Tablet,
-  Keyboard,
-  Mouse,
-  Printer,
-  HardDrive,
-  Cpu,
-  MemoryStick,
+  Camera,
+  Settings,
   Wifi,
-  Bluetooth,
-  Cast,
-  Battery,
-  BatteryCharging,
-
-  // สื่อ & ความบันเทิง
+  Volume2,
   Play,
   Pause,
-  Square,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  Volume2,
-  Volume1,
-  VolumeX,
-  Mic,
-  MicOff,
-  Headphones,
-  Speaker,
+  Monitor,
+  Terminal,
+  Folder,
+  Mail,
+  MessageSquare,
+  Cpu,
+  HardDrive,
+  LayoutGrid,
+  MousePointer2,
+  Search,
   Music,
-  Video,
-  Camera,
-  Image,
-
-  // แอคชันเพิ่มเติม
-  Check,
-  X,
-  Plus,
-  Minus,
-  Maximize,
-  Minimize,
-  RefreshCw,
-  Share2,
-  Star,
-  Heart,
-  Bell,
-  BellOff,
-  User,
-  Users,
+  Power,
 };
 
-// รายชื่อไอคอนสำหรับวนลูปสร้างปุ่ม (โค้ดบรรทัดนี้ปล่อยไว้เหมือนเดิมครับ)
 const ICON_LIST = Object.keys(ICON_MAP);
 
 const ACTION_TYPE_LABELS: Record<ActionTypeValue, string> = {
@@ -309,18 +161,6 @@ function formToSlice(f: SliceForm): ApiSlice {
   };
 }
 
-interface SliceRowProps {
-  slice: ApiSlice;
-  index: number;
-  isEditing: boolean;
-  onEdit: (s: ApiSlice) => void;
-  onDelete: (id: string) => void;
-  onMoveUp: (id: string) => void;
-  onMoveDown: (id: string) => void;
-  isFirst: boolean;
-  isLast: boolean;
-}
-
 function SliceRow({
   slice,
   index,
@@ -331,8 +171,7 @@ function SliceRow({
   onMoveDown,
   isFirst,
   isLast,
-}: SliceRowProps) {
-  // ดึงไอคอนมาแสดง ถ้าเป็น Emoji เก่า หรือหาไม่เจอ ให้ใช้ Zap
+}: any) {
   const RowIcon = ICON_MAP[slice.icon || "Zap"] || ICON_MAP.Zap;
 
   return (
@@ -416,11 +255,21 @@ function SliceEditor({
   onCancel: () => void;
 }) {
   const labelRef = useRef<HTMLInputElement>(null);
+  const actionInputRef = useRef<HTMLInputElement>(null); // <--- เพิ่ม Ref สำหรับช่อง Command
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     labelRef.current?.focus();
   }, []);
+
+  // ─── หัวใจสำคัญ: เมื่อกด Record ให้โฟกัสช่อง Input ทันที ───
+  useEffect(() => {
+    if (isRecording) {
+      actionInputRef.current?.focus();
+    }
+  }, [isRecording]);
+
   const set = useCallback(
     <K extends keyof SliceForm>(key: K, value: SliceForm[K]) =>
       onChange({ ...form, [key]: value }),
@@ -429,8 +278,43 @@ function SliceEditor({
   const canSave =
     form.label.trim().length > 0 && form.actionData.trim().length > 0;
 
-  // ไอคอนปัจจุบัน ถ้าอันเก่าเป็นอีโมจิ หรือหาไม่เจอ ให้แสดง Zap แทน
   const CurrentIcon = ICON_MAP[form.icon] || ICON_MAP.Zap;
+
+  const handleBrowse = async () => {
+    try {
+      const selectedPath = await open({ multiple: false, directory: false });
+      if (selectedPath) set("actionData", selectedPath as string);
+    } catch (err) {
+      console.error("Browse error:", err);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isRecording) {
+      if (e.key === "Enter" && canSave) onSave();
+      if (e.key === "Escape") onCancel();
+      return;
+    }
+    e.preventDefault();
+    if (e.key === "Escape") {
+      setIsRecording(false);
+      return;
+    }
+
+    const keys: string[] = [];
+    if (e.ctrlKey) keys.push("ctrl");
+    if (e.altKey) keys.push("alt");
+    if (e.shiftKey) keys.push("shift");
+    if (e.metaKey) keys.push("cmd");
+
+    if (!["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+      let keyName = e.key.toLowerCase();
+      if (keyName === " ") keyName = "space";
+      keys.push(keyName);
+      set("actionData", keys.join("+"));
+      setIsRecording(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-b from-indigo-500/10 to-transparent p-6 space-y-6 mt-4 shadow-lg">
@@ -440,6 +324,7 @@ function SliceEditor({
         </h3>
       </div>
 
+      {/* Row 1: Label / Icon / Color */}
       <div className="grid grid-cols-[1fr_auto_auto] gap-5 relative">
         <div className="space-y-1.5">
           <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -450,12 +335,10 @@ function SliceEditor({
             type="text"
             value={form.label}
             onChange={(e) => set("label", e.target.value)}
-            placeholder="e.g. Browser"
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
           />
         </div>
 
-        {/* ส่วนเลือกไอคอน (Icon Picker) */}
         <div className="space-y-1.5">
           <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">
             Icon
@@ -467,22 +350,9 @@ function SliceEditor({
           >
             <CurrentIcon size={20} strokeWidth={2.5} />
           </button>
-
-          {/* ป๊อปอัพเมนูเลือกไอคอน */}
           {showIconPicker && (
             <div className="absolute top-[80px] right-[60px] z-50 p-3 bg-zinc-950 border border-zinc-700 rounded-xl shadow-2xl w-[280px]">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800">
-                <span className="text-xs font-medium text-zinc-400">
-                  Select Icon
-                </span>
-                <button
-                  onClick={() => setShowIconPicker(false)}
-                  className="text-zinc-500 hover:text-white text-xs"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="grid grid-cols-6 gap-1 max-h-[220px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-5 gap-1.5 max-h-[180px] overflow-y-auto pr-1">
                 {ICON_LIST.map((iconName) => {
                   const IconCmp = ICON_MAP[iconName];
                   return (
@@ -493,12 +363,7 @@ function SliceEditor({
                         set("icon", iconName);
                         setShowIconPicker(false);
                       }}
-                      className={`p-2 flex items-center justify-center rounded-lg transition-colors ${
-                        form.icon === iconName
-                          ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/50"
-                          : "border border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                      }`}
-                      title={iconName}
+                      className={`p-2 flex items-center justify-center rounded-lg transition-colors ${form.icon === iconName ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/50" : "border border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
                     >
                       <IconCmp size={18} strokeWidth={2.5} />
                     </button>
@@ -513,20 +378,33 @@ function SliceEditor({
           <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">
             Color
           </label>
-          <div className="relative w-11 h-11">
-            <input
-              type="color"
-              value={form.color}
-              onChange={(e) => set("color", e.target.value)}
-              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-            />
-            <div
-              className="w-full h-full rounded-full border-2 border-zinc-700 cursor-pointer transition-transform hover:scale-105"
-              style={{
-                backgroundColor: form.color,
-                boxShadow: `0 0 15px ${form.color}40`,
-              }}
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative w-11 h-11 shrink-0">
+              <input
+                type="color"
+                value={form.color}
+                onChange={(e) => set("color", e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+              />
+              <div
+                className="w-full h-full rounded-full border-2 border-zinc-700 transition-transform hover:scale-105"
+                style={{
+                  backgroundColor: form.color,
+                  boxShadow: `0 0 15px ${form.color}40`,
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-w-[80px]">
+              {ACCENT_PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => set("color", c)}
+                  className={`w-4 h-4 rounded-full border transition-all hover:scale-125 ${form.color === c ? "border-white" : "border-transparent"}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -547,22 +425,43 @@ function SliceEditor({
           ))}
         </div>
       </div>
+
       <div className="space-y-1.5">
         <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">
           Command / Path
         </label>
-        <input
-          type="text"
-          value={form.actionData}
-          onChange={(e) => set("actionData", e.target.value)}
-          placeholder={ACTION_DATA_PLACEHOLDERS[form.actionType]}
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && canSave) onSave();
-            if (e.key === "Escape") onCancel();
-          }}
-        />
+        <div className="flex gap-2">
+          <input
+            ref={actionInputRef} // <--- ใส่ Ref ตรงนี้
+            type="text"
+            value={
+              isRecording ? "Listening... (Press your keys)" : form.actionData
+            }
+            readOnly={isRecording}
+            onChange={(e) => set("actionData", e.target.value)}
+            placeholder={ACTION_DATA_PLACEHOLDERS[form.actionType]}
+            className={`w-full bg-zinc-900 border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none transition-all ${isRecording ? "border-red-500/50 text-red-400 ring-1 ring-red-500/30 animate-pulse" : "border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"}`}
+            onKeyDown={handleKeyDown}
+          />
+          {form.actionType === "shortcut" && (
+            <button
+              onClick={() => setIsRecording(!isRecording)}
+              className={`px-4 py-2 rounded-xl text-xs font-medium transition-all shrink-0 ${isRecording ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700"}`}
+            >
+              {isRecording ? "Cancel" : "⏺ Record"}
+            </button>
+          )}
+          {(form.actionType === "launch" || form.actionType === "script") && (
+            <button
+              onClick={handleBrowse}
+              className="px-4 py-2 bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 rounded-xl text-xs font-medium transition-all shrink-0"
+            >
+              📂 Browse
+            </button>
+          )}
+        </div>
       </div>
+
       <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
         <button
           onClick={onCancel}
