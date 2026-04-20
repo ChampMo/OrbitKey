@@ -1,0 +1,59 @@
+# ── Node / npm ────────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Rust / Cargo ──────────────────────────────────────────────
+src-tauri/target/
+
+# Cargo lock is intentionally kept for applications (not libraries)
+# Uncomment below only if you want to ignore it:
+# src-tauri/Cargo.lock
+
+# ── Tauri ─────────────────────────────────────────────────────
+# Generated schema and capability files (recreated on build)
+src-tauri/gen/
+
+# WiX installer build artifacts
+src-tauri/WixTools/
+
+# ── Editor & OS ───────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ── Environment / Secrets ─────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── TypeScript ────────────────────────────────────────────────
+*.tsbuildinfo

@@ -1,0 +1,37 @@
+[package]
+name = "action-ring"
+version = "0.1.0"
+description = "Radial Menu / Action Ring — Tauri v2 Desktop Application"
+authors = []
+edition = "2021"
+
+# See more keys: https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix makes the lib name different from the bin name.
+# Tauri requires both to coexist in the same crate.
+name = "action_ring_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri                       = { version = "2", features = [] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-shell          = "2"
+tauri-plugin-fs             = "2"
+serde                       = { version = "1", features = ["derive"] }
+serde_json                  = "1"
+
+# Input simulation (keyboard shortcuts)
+enigo                       = "0.2"
+
+# Async primitives used in execute_action (spawn_blocking + time::sleep)
+# Tauri v2 embeds tokio, but we need to reference it directly for these APIs.
+tokio                       = { version = "1", features = ["rt", "time"] }
+
+[features]
+# This feature is used for production builds or when `devUrl` is not set.
+# DO NOT REMOVE!
+custom-protocol = ["tauri/custom-protocol"]

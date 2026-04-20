@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Action Ring</title>
+    <!--
+      Tauri injects its IPC bridge before the JS module loads.
+      Do NOT add a Content-Security-Policy meta tag here — Tauri
+      manages CSP via tauri.conf.json → app.security.csp.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
