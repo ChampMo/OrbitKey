@@ -30,8 +30,8 @@
       {
         "label": "action-ring",
         "title": "",
-        "width": 450,
-        "height": 450,
+        "width": 800,
+        "height": 800,
         "resizable": false,
         "decorations": false,
         "transparent": true,

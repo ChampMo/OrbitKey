@@ -1,5 +1,5 @@
 /**
- * ControlPanel.tsx — Action Ring Settings Dashboard (Ultimate Pixel-Perfect Version)
+ * ControlPanel.tsx — Action Ring Settings Dashboard (Auto-Save Version)
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -33,7 +33,10 @@ import {
   Upload,
   Trash2,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
+
+import SettingsPanel from "./SettingsPanel";
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 type ActionTypeValue = "shortcut" | "launch" | "script" | "folder";
@@ -56,8 +59,6 @@ interface ApiProfile {
   isDefault: boolean;
   slices: ApiSlice[];
 }
-
-type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 // ─── 2. Constants & Maps ──────────────────────────────────────────────────
 const ACCENT_PALETTE = [
@@ -144,13 +145,11 @@ function SliceEditor({
   slice,
   onChange,
   onDelete,
-  onCancel,
-  isChildItem, // พร็อพใหม่ เพื่อเช็คว่าเป็นไอเท็มวงลูกหรือไม่
+  isChildItem,
 }: {
   slice: ApiSlice;
   onChange: (updated: ApiSlice) => void;
   onDelete: () => void;
-  onCancel: () => void;
   isChildItem: boolean;
 }) {
   const labelRef = useRef<HTMLInputElement>(null);
@@ -181,7 +180,6 @@ function SliceEditor({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isRecording) return;
-
     e.preventDefault();
     if (e.key === "Escape") {
       setIsRecording(false);
@@ -202,12 +200,10 @@ function SliceEditor({
     }
   };
 
-  // ** ข้อ 2 & 3: จัดการปุ่ม Action Type **
   const availableTypes: ActionTypeValue[] = isChildItem
-    ? ["shortcut", "launch", "script"] // วงลูกไม่มีปุ่ม Folder
+    ? ["shortcut", "launch", "script"]
     : ["shortcut", "launch", "script", "folder"];
 
-  // ถ้าเป็น Folder และมีลูกอยู่ข้างใน ห้ามเปลี่ยนเป็น Type อื่น
   const hasChildren =
     slice.actionType === "folder" &&
     slice.children &&
@@ -220,12 +216,7 @@ function SliceEditor({
           Edit Configuration
         </h3>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onCancel}
-            className="text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/50 px-4 py-2 rounded-lg border border-zinc-700/50 transition-colors"
-          >
-            Cancel
-          </button>
+          {/* เอาปุ่ม Cancel ออกไปแล้วตามรูปกากบาท */}
           <button
             onClick={onDelete}
             className="text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/20 transition-colors"
@@ -405,23 +396,17 @@ function SliceEditor({
 
 // ─── 5. Main Control Panel Component ──────────────────────────────────────
 export default function ControlPanel() {
+  const [currentView, setCurrentView] = useState<"profiles" | "settings">(
+    "profiles",
+  );
+
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
-  const [savedProfiles, setSavedProfiles] = useState<ApiProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [activeProfileIndex, setActiveProfileIndex] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-
-  const [originalSnapshot, setOriginalSnapshot] = useState<ApiSlice | null>(
-    null,
-  );
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
-
-  const [isDirty, setIsDirty] = useState(false);
-  const [dirtySliceIds, setDirtySliceIds] = useState<Set<string>>(new Set());
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
@@ -440,7 +425,6 @@ export default function ControlPanel() {
   const activeProfile = profiles[activeProfileIndex];
   const rootSlices = activeProfile?.slices ?? [];
 
-  // หา Editing Slice
   const editingSlice = (() => {
     if (!editingId) return undefined;
     let found = rootSlices.find((s) => s.id === editingId);
@@ -459,12 +443,23 @@ export default function ControlPanel() {
       ?.children?.some((c) => c.id === editingId)
   );
 
-  // --- Fetch Initial Data ---
+  // --- Auto-Save System (Debounced) ---
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const autoSaveToBackend = useCallback((newProfiles: ApiProfile[]) => {
+    setProfiles(newProfiles);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    // หน่วงเวลา 400ms เพื่อไม่ให้เขียนลงดิสก์รัวเกินไปตอนพิมพ์ข้อความ
+    saveTimeoutRef.current = setTimeout(() => {
+      invoke("save_profiles", { profiles: newProfiles }).catch(console.error);
+    }, 400);
+  }, []);
+
   useEffect(() => {
     invoke<ApiProfile[]>("get_profiles")
       .then((data) => {
-        setProfiles(data);
-        setSavedProfiles(JSON.parse(JSON.stringify(data)));
+        if (data) setProfiles(data);
         setLoading(false);
       })
       .catch((e) => {
@@ -473,12 +468,6 @@ export default function ControlPanel() {
       });
   }, []);
 
-  useEffect(() => {
-    if (saveStatus !== "saved") return;
-    const t = setTimeout(() => setSaveStatus("idle"), 2500);
-    return () => clearTimeout(t);
-  }, [saveStatus]);
-
   // --- State Handlers ---
   function handleAddProfile() {
     const initialSlice = emptySlice();
@@ -486,42 +475,38 @@ export default function ControlPanel() {
       id: uid(),
       name: `New Profile`,
       appMatcher: null,
-      isDefault: false,
+      isDefault: profiles.length === 0,
       slices: [initialSlice],
     };
-    setProfiles([...profiles, newProfile]);
-    setActiveProfileIndex(profiles.length);
-    setIsDirty(true);
+    const updated = [...profiles, newProfile];
+    autoSaveToBackend(updated);
+    setActiveProfileIndex(updated.length - 1);
   }
 
   function handleProfileTabChange(idx: number) {
-    if (isDirty) {
-      setProfiles(JSON.parse(JSON.stringify(savedProfiles)));
-      setIsDirty(false);
-      setDirtySliceIds(new Set());
-    }
     setActiveProfileIndex(idx);
     setActiveFolderId(null);
     setEditingId(null);
-    setOriginalSnapshot(null);
-    setIsCreatingNew(false);
   }
 
   function handleProfileNameChange(newName: string) {
-    setProfiles((prev) =>
-      prev.map((p, i) =>
-        i === activeProfileIndex ? { ...p, name: newName } : p,
-      ),
+    const updated = profiles.map((p, i) =>
+      i === activeProfileIndex ? { ...p, name: newName } : p,
     );
-    setIsDirty(true);
+    autoSaveToBackend(updated);
+  }
+
+  function handleSetDefaultProfile() {
+    const updated = profiles.map((p, i) => ({
+      ...p,
+      isDefault: i === activeProfileIndex,
+    }));
+    autoSaveToBackend(updated);
   }
 
   function handleStartEdit(slice: ApiSlice) {
-    setOriginalSnapshot(JSON.parse(JSON.stringify(slice)));
-    setIsCreatingNew(false);
     setEditingId(slice.id);
 
-    // เปิด/ปิด Folder
     if (slice.actionType === "folder") {
       setActiveFolderId(slice.id);
     } else {
@@ -533,72 +518,72 @@ export default function ControlPanel() {
   }
 
   function handleUpdateSlice(updated: ApiSlice) {
-    setProfiles((prev) =>
-      prev.map((p, i) => {
-        if (i !== activeProfileIndex) return p;
-        let newSlices = [...p.slices];
+    const newProfiles = profiles.map((p, i) => {
+      if (i !== activeProfileIndex) return p;
+      let newSlices = [...p.slices];
 
-        const rootIdx = newSlices.findIndex((s) => s.id === updated.id);
-        if (rootIdx !== -1) {
-          newSlices[rootIdx] = updated;
-        } else if (activeFolderId) {
-          const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
-          if (folderIdx !== -1 && newSlices[folderIdx].children) {
-            const newChildren = [...newSlices[folderIdx].children!];
-            const childIdx = newChildren.findIndex((c) => c.id === updated.id);
-            if (childIdx !== -1) {
-              newChildren[childIdx] = updated;
-              newSlices[folderIdx] = {
-                ...newSlices[folderIdx],
-                children: newChildren,
-              };
-            }
+      const rootIdx = newSlices.findIndex((s) => s.id === updated.id);
+      if (rootIdx !== -1) {
+        newSlices[rootIdx] = updated;
+      } else if (activeFolderId) {
+        const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
+        if (folderIdx !== -1 && newSlices[folderIdx].children) {
+          const newChildren = [...newSlices[folderIdx].children!];
+          const childIdx = newChildren.findIndex((c) => c.id === updated.id);
+          if (childIdx !== -1) {
+            newChildren[childIdx] = updated;
+            newSlices[folderIdx] = {
+              ...newSlices[folderIdx],
+              children: newChildren,
+            };
           }
         }
-        return { ...p, slices: newSlices };
-      }),
-    );
-    setDirtySliceIds((prev) => new Set(prev).add(updated.id));
-    setIsDirty(true);
+      }
+      return { ...p, slices: newSlices };
+    });
+    autoSaveToBackend(newProfiles);
   }
 
   function handleNewSlice() {
-    if (isCreatingNew) return; // กันกดปุ่มบวกรัวๆ
-
     const newSlice = emptySlice();
-    setProfiles((prev) =>
-      prev.map((p, i) => {
-        if (i !== activeProfileIndex) return p;
-        let newSlices = [...p.slices];
+    const newProfiles = profiles.map((p, i) => {
+      if (i !== activeProfileIndex) return p;
+      let newSlices = [...p.slices];
 
-        if (activeFolderId) {
-          const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
-          if (folderIdx !== -1) {
-            newSlices[folderIdx] = {
-              ...newSlices[folderIdx],
-              children: [...(newSlices[folderIdx].children || []), newSlice],
-            };
-          }
-        } else {
-          newSlices.push(newSlice);
+      if (activeFolderId) {
+        const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
+        if (folderIdx !== -1) {
+          newSlices[folderIdx] = {
+            ...newSlices[folderIdx],
+            children: [...(newSlices[folderIdx].children || []), newSlice],
+          };
         }
-        return { ...p, slices: newSlices };
-      }),
-    );
-    setOriginalSnapshot(null);
-    setIsCreatingNew(true);
+      } else {
+        newSlices.push(newSlice);
+      }
+      return { ...p, slices: newSlices };
+    });
+
+    autoSaveToBackend(newProfiles);
     setEditingId(newSlice.id);
-    setDirtySliceIds((prev) => new Set(prev).add(newSlice.id));
-    setIsDirty(true);
   }
 
-  function handleCancelEdit() {
-    if (isCreatingNew && editingId) {
-      setProfiles((prev) =>
-        prev.map((p, i) => {
+  function handleDeleteSlice() {
+    if (!editingId) return;
+    setConfirmModal({
+      title: "Delete Item",
+      message:
+        "Are you sure you want to delete this item? This action cannot be undone.",
+      onConfirm: () => {
+        const newProfiles = profiles.map((p, i) => {
           if (i !== activeProfileIndex) return p;
           let newSlices = [...p.slices];
-          if (activeFolderId) {
+
+          const rootIdx = newSlices.findIndex((s) => s.id === editingId);
+          if (rootIdx !== -1) {
+            newSlices.splice(rootIdx, 1);
+            if (activeFolderId === editingId) setActiveFolderId(null);
+          } else if (activeFolderId) {
             newSlices = newSlices.map((s) =>
               s.id === activeFolderId
                 ? {
@@ -609,63 +594,12 @@ export default function ControlPanel() {
                   }
                 : s,
             );
-          } else {
-            newSlices = newSlices.filter((s) => s.id !== editingId);
           }
           return { ...p, slices: newSlices };
-        }),
-      );
-    } else if (originalSnapshot) {
-      handleUpdateSlice(originalSnapshot);
-    }
+        });
 
-    if (editingId) {
-      setDirtySliceIds((prev) => {
-        const next = new Set(prev);
-        next.delete(editingId!);
-        return next;
-      });
-    }
-
-    setEditingId(null);
-    setIsCreatingNew(false);
-    setOriginalSnapshot(null);
-  }
-
-  function handleDeleteSlice() {
-    if (!editingId) return;
-    setConfirmModal({
-      title: "Delete Item",
-      message:
-        "Are you sure you want to delete this item? This action cannot be undone.",
-      onConfirm: () => {
-        setProfiles((prev) =>
-          prev.map((p, i) => {
-            if (i !== activeProfileIndex) return p;
-            let newSlices = [...p.slices];
-
-            const rootIdx = newSlices.findIndex((s) => s.id === editingId);
-            if (rootIdx !== -1) {
-              newSlices.splice(rootIdx, 1);
-              if (activeFolderId === editingId) setActiveFolderId(null);
-            } else if (activeFolderId) {
-              newSlices = newSlices.map((s) =>
-                s.id === activeFolderId
-                  ? {
-                      ...s,
-                      children: (s.children || []).filter(
-                        (c) => c.id !== editingId,
-                      ),
-                    }
-                  : s,
-              );
-            }
-            return { ...p, slices: newSlices };
-          }),
-        );
+        autoSaveToBackend(newProfiles);
         setEditingId(null);
-        setIsCreatingNew(false);
-        setIsDirty(true);
       },
     });
   }
@@ -679,52 +613,16 @@ export default function ControlPanel() {
       title: "Delete Profile",
       message: `Are you sure you want to delete "${activeProfile?.name}"? All slices inside it will be lost forever.`,
       onConfirm: () => {
-        setProfiles((prev) => prev.filter((_, i) => i !== activeProfileIndex));
+        const newProfiles = profiles.filter((_, i) => i !== activeProfileIndex);
+        autoSaveToBackend(newProfiles);
         setActiveProfileIndex(Math.max(0, activeProfileIndex - 1));
         setActiveFolderId(null);
         setEditingId(null);
-        setIsDirty(true);
       },
     });
   }
 
   // --- Fast Pointer Drag & Drop Logic ---
-  const handleSwapSlice = (idA: string, idB: string) => {
-    setProfiles((prevProfiles) =>
-      prevProfiles.map((profile, idx) => {
-        if (idx !== activeProfileIndex) return profile;
-        let newSlices = [...profile.slices];
-
-        const swapInArray = (arr: ApiSlice[]) => {
-          const idxA = arr.findIndex((s) => s.id === idA);
-          const idxB = arr.findIndex((s) => s.id === idB);
-          if (idxA !== -1 && idxB !== -1) {
-            const temp = arr[idxA];
-            arr[idxA] = arr[idxB];
-            arr[idxB] = temp;
-            return true;
-          }
-          return false;
-        };
-
-        if (!swapInArray(newSlices)) {
-          if (activeFolderId) {
-            const fIdx = newSlices.findIndex((s) => s.id === activeFolderId);
-            if (fIdx !== -1 && newSlices[fIdx].children) {
-              const newChildren = [...newSlices[fIdx].children];
-              if (swapInArray(newChildren)) {
-                newSlices[fIdx] = { ...newSlices[fIdx], children: newChildren };
-              }
-            }
-          }
-        }
-        return { ...profile, slices: newSlices };
-      }),
-    );
-    setIsDirty(true);
-    setDirtySliceIds((prev) => new Set(prev).add(idA).add(idB));
-  };
-
   const handlePointerDown = (e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -795,7 +693,17 @@ export default function ControlPanel() {
             ) {
               setHoveredId(targetId);
             } else {
-              handleSwapSlice(draggedId, targetId);
+              setLiveOrder((prev) => {
+                if (!prev) return prev;
+                const next = [...prev];
+                const from = next.indexOf(draggedId);
+                const to = next.indexOf(targetId);
+                if (from !== -1 && to !== -1) {
+                  next.splice(from, 1);
+                  next.splice(to, 0, draggedId);
+                }
+                return next;
+              });
               setHoveredId(null);
             }
           } else if (!isSameLevel) {
@@ -813,7 +721,6 @@ export default function ControlPanel() {
     if (!dragStartPos.current) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
 
-    // ดึงของออกจากโฟลเดอร์
     if (draggedId && activeFolderId) {
       const isDraggedChild = rootSlices
         .find((s) => s.id === activeFolderId)
@@ -828,36 +735,34 @@ export default function ControlPanel() {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (!hoveredId && dist > 80 && dist < 170) {
-          setProfiles((prev) =>
-            prev.map((p, idx) => {
-              if (idx !== activeProfileIndex) return p;
-              const newSlices = [...p.slices];
-              const folderIdx = newSlices.findIndex(
-                (s) => s.id === activeFolderId,
+          const newProfiles = profiles.map((p, idx) => {
+            if (idx !== activeProfileIndex) return p;
+            const newSlices = [...p.slices];
+            const folderIdx = newSlices.findIndex(
+              (s) => s.id === activeFolderId,
+            );
+
+            if (folderIdx !== -1) {
+              const folder = { ...newSlices[folderIdx] };
+              const draggedChild = folder.children?.find(
+                (c) => c.id === draggedId,
               );
 
-              if (folderIdx !== -1) {
-                const folder = { ...newSlices[folderIdx] };
-                const draggedChild = folder.children?.find(
-                  (c) => c.id === draggedId,
+              if (draggedChild) {
+                folder.children = (folder.children || []).filter(
+                  (c) => c.id !== draggedId,
                 );
-
-                if (draggedChild) {
-                  folder.children = (folder.children || []).filter(
-                    (c) => c.id !== draggedId,
-                  );
-                  newSlices[folderIdx] = folder;
-                  newSlices.push(draggedChild);
-                }
+                newSlices[folderIdx] = folder;
+                newSlices.push(draggedChild);
               }
-              return { ...p, slices: newSlices };
-            }),
-          );
+            }
+            return { ...p, slices: newSlices };
+          });
+
+          autoSaveToBackend(newProfiles);
 
           setActiveFolderId(null);
           setEditingId(null);
-          setIsDirty(true);
-          setDirtySliceIds((prev) => new Set(prev).add(draggedId));
 
           dragStartPos.current = null;
           lastHoveredId.current = null;
@@ -877,58 +782,51 @@ export default function ControlPanel() {
         hoveredId &&
         rootSlices.find((s) => s.id === hoveredId)?.actionType === "folder"
       ) {
-        setProfiles((prevProfiles) =>
-          prevProfiles.map((profile, idx) => {
-            if (idx !== activeProfileIndex) return profile;
-            let newSlices = [...profile.slices];
-            const dIdx = newSlices.findIndex((s) => s.id === draggedId);
-            const tIdx = newSlices.findIndex((s) => s.id === hoveredId);
-            if (dIdx !== -1 && tIdx !== -1) {
-              const draggedItem = newSlices[dIdx];
-              const targetItem = newSlices[tIdx];
-              newSlices.splice(dIdx, 1);
-              const finalTIdx = newSlices.findIndex((s) => s.id === hoveredId);
-              newSlices[finalTIdx] = {
-                ...targetItem,
-                children: [...(targetItem.children || []), draggedItem],
-              };
-            }
-            return { ...profile, slices: newSlices };
-          }),
-        );
-        setIsDirty(true);
-        setDirtySliceIds((prev) => new Set(prev).add(draggedId).add(hoveredId));
+        const newProfiles = profiles.map((profile, idx) => {
+          if (idx !== activeProfileIndex) return profile;
+          let newSlices = [...profile.slices];
+          const dIdx = newSlices.findIndex((s) => s.id === draggedId);
+          const tIdx = newSlices.findIndex((s) => s.id === hoveredId);
+          if (dIdx !== -1 && tIdx !== -1) {
+            const draggedItem = newSlices[dIdx];
+            const targetItem = newSlices[tIdx];
+            newSlices.splice(dIdx, 1);
+            const finalTIdx = newSlices.findIndex((s) => s.id === hoveredId);
+            newSlices[finalTIdx] = {
+              ...targetItem,
+              children: [...(targetItem.children || []), draggedItem],
+            };
+          }
+          return { ...profile, slices: newSlices };
+        });
+        autoSaveToBackend(newProfiles);
       } else if (liveOrder) {
-        setProfiles((prevProfiles) =>
-          prevProfiles.map((profile, idx) => {
-            if (idx !== activeProfileIndex) return profile;
-            let newSlices = [...profile.slices];
+        const newProfiles = profiles.map((profile, idx) => {
+          if (idx !== activeProfileIndex) return profile;
+          let newSlices = [...profile.slices];
 
-            const isDraggingInFolder =
-              activeFolderId &&
-              rootSlices
-                .find((s) => s.id === activeFolderId)
-                ?.children?.some((c) => c.id === draggedId);
+          const isDraggingInFolder =
+            activeFolderId &&
+            rootSlices
+              .find((s) => s.id === activeFolderId)
+              ?.children?.some((c) => c.id === draggedId);
 
-            if (isDraggingInFolder) {
-              const fIdx = newSlices.findIndex((s) => s.id === activeFolderId);
-              if (fIdx !== -1 && newSlices[fIdx].children) {
-                const newChildren = liveOrder
-                  .map((id) =>
-                    newSlices[fIdx].children!.find((c) => c.id === id),
-                  )
-                  .filter(Boolean) as ApiSlice[];
-                newSlices[fIdx] = { ...newSlices[fIdx], children: newChildren };
-              }
-            } else {
-              newSlices = liveOrder
-                .map((id) => newSlices.find((s) => s.id === id))
+          if (isDraggingInFolder) {
+            const fIdx = newSlices.findIndex((s) => s.id === activeFolderId);
+            if (fIdx !== -1 && newSlices[fIdx].children) {
+              const newChildren = liveOrder
+                .map((id) => newSlices[fIdx].children!.find((c) => c.id === id))
                 .filter(Boolean) as ApiSlice[];
+              newSlices[fIdx] = { ...newSlices[fIdx], children: newChildren };
             }
-            return { ...profile, slices: newSlices };
-          }),
-        );
-        setIsDirty(true);
+          } else {
+            newSlices = liveOrder
+              .map((id) => newSlices.find((s) => s.id === id))
+              .filter(Boolean) as ApiSlice[];
+          }
+          return { ...profile, slices: newSlices };
+        });
+        autoSaveToBackend(newProfiles);
       }
     }
 
@@ -939,20 +837,6 @@ export default function ControlPanel() {
     setHoveredId(null);
     setLiveOrder(null);
   };
-
-  async function handleSaveAll() {
-    if (profiles.length === 0) return;
-    setSaveStatus("saving");
-    try {
-      await invoke("save_profiles", { profiles });
-      setSavedProfiles(JSON.parse(JSON.stringify(profiles)));
-      setSaveStatus("saved");
-      setIsDirty(false);
-      setDirtySliceIds(new Set());
-    } catch (e) {
-      setSaveStatus("error");
-    }
-  }
 
   async function handleExport() {
     if (!activeProfile) return;
@@ -967,16 +851,13 @@ export default function ControlPanel() {
     try {
       const importedProfile = await invoke<ApiProfile>("import_profile");
       const updatedProfiles = [...profiles, importedProfile];
-      setProfiles(updatedProfiles);
-      setSavedProfiles(JSON.parse(JSON.stringify(updatedProfiles)));
+      autoSaveToBackend(updatedProfiles);
       setActiveProfileIndex(updatedProfiles.length - 1);
-      setIsDirty(false);
     } catch (e) {
       console.error(e);
     }
   }
 
-  // --- Render Helpers ---
   const renderRing = (
     slicesToRender: ApiSlice[],
     radius: number,
@@ -1019,7 +900,6 @@ export default function ControlPanel() {
       const y = Math.sin(angle) * radius;
 
       const isSelected = editingId === slice.id;
-      const isDirtySlice = dirtySliceIds.has(slice.id);
       const isBeingDragged = draggedId === slice.id;
       const isBeingHovered = hoveredId === slice.id;
       const isActiveFolder = activeFolderId === slice.id;
@@ -1030,7 +910,6 @@ export default function ControlPanel() {
         const arrowX = Math.cos(angle) * arrowR;
         const arrowY = Math.sin(angle) * arrowR;
 
-        // **ข้อ 4: ลูกศรล็อกตำแหน่งกึ่งกลาง 100% ไม่มีเบี้ยว**
         elements.push(
           <div
             key={`${slice.id}-floating-arrow`}
@@ -1053,7 +932,6 @@ export default function ControlPanel() {
         );
       }
 
-      // ** ข้อ 4: ปุ่มหลัก ล็อกกึ่งกลาง 100% **
       elements.push(
         <button
           key={slice.id}
@@ -1065,8 +943,7 @@ export default function ControlPanel() {
             ${isBeingDragged ? "opacity-0 pointer-events-none" : ""}
             ${isSelected && !isBeingDragged ? "ring-4 ring-indigo-500/50 scale-110" : !isBeingDragged && "hover:scale-110"}
             ${isBeingHovered && slice.actionType === "folder" ? "ring-4 ring-rose-500 scale-125" : ""}
-            ${isDirtySlice && !isSelected && !isBeingHovered && !isBeingDragged ? "ring-2 ring-amber-400 border-transparent" : ""}
-            ${!isSelected && !isDirtySlice && !isBeingHovered && !isBeingDragged ? "border border-white/10 hover:border-white/30" : ""}
+            ${!isSelected && !isBeingHovered && !isBeingDragged ? "border border-white/10 hover:border-white/30" : ""}
             ${isOuter ? "scale-90 opacity-95" : ""}
           `}
           style={{
@@ -1090,7 +967,6 @@ export default function ControlPanel() {
     return elements;
   };
 
-  // --- Render ---
   if (loading)
     return (
       <div className="h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">
@@ -1104,6 +980,11 @@ export default function ControlPanel() {
       </div>
     );
 
+  // --- Rendering Router ---
+  if (currentView === "settings") {
+    return <SettingsPanel onBack={() => setCurrentView("profiles")} />;
+  }
+
   return (
     <div
       className="absolute inset-0 w-screen w-full h-screen m-0 p-0 flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans"
@@ -1112,7 +993,6 @@ export default function ControlPanel() {
         setEditingId(null);
       }}
     >
-      {/* CUSTOM CONFIRMATION MODAL */}
       {confirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4">
@@ -1143,7 +1023,6 @@ export default function ControlPanel() {
         </div>
       )}
 
-      {/* GHOST ELEMENT FOR DRAGGING */}
       {draggedId &&
         dragPos &&
         (() => {
@@ -1157,7 +1036,7 @@ export default function ControlPanel() {
           const SliceIcon = ICON_MAP[draggedSlice.icon || "Zap"] || Zap;
           return (
             <div
-              className="fixed pointer-events-none z-[100] w-[64px] h-[64px] rounded-full flex items-center justify-center shadow-2xl scale-110 ring-4 ring-indigo-500/80"
+              className="fixed pointer-events-none z-[100] w-[64px] h-[64px] rounded-full flex flex-col items-center justify-center shadow-2xl scale-110 ring-4 ring-indigo-500/80"
               style={{
                 left: dragPos.x,
                 top: dragPos.y,
@@ -1176,7 +1055,6 @@ export default function ControlPanel() {
           );
         })()}
 
-      {/* TOP HEADER */}
       <header
         className="shrink-0 flex items-center justify-between px-8 py-5 bg-[#0c0c0e] border-b border-zinc-800/60 z-10 shadow-sm"
         onClick={(e) => e.stopPropagation()}
@@ -1186,8 +1064,14 @@ export default function ControlPanel() {
             <button
               key={p.id}
               onClick={() => handleProfileTabChange(idx)}
-              className={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeProfileIndex === idx ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"}`}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeProfileIndex === idx ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"}`}
             >
+              {p.isDefault && (
+                <div
+                  className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"
+                  title="Active Profile"
+                ></div>
+              )}
               {p.name}
             </button>
           ))}
@@ -1201,41 +1085,25 @@ export default function ControlPanel() {
         </div>
 
         <div className="flex items-center gap-5">
-          {isDirty && saveStatus === "idle" && (
-            <span className="text-xs text-amber-400 animate-pulse font-medium">
-              ● Unsaved changes
-            </span>
-          )}
-          {saveStatus === "saving" && (
-            <span className="text-xs text-zinc-500">Saving…</span>
-          )}
-          {saveStatus === "saved" && (
-            <span className="text-xs text-emerald-400 font-medium">
-              ✓ Saved
-            </span>
-          )}
-
-          <div className="h-6 w-px bg-zinc-800 mx-2"></div>
-
           <button
             onClick={handleImport}
             className="text-sm font-medium text-zinc-400 hover:text-white px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
           >
             Import
           </button>
+
+          <div className="h-6 w-px bg-zinc-800 mx-2"></div>
+
           <button
-            onClick={handleSaveAll}
-            disabled={!isDirty || saveStatus === "saving"}
-            className="ml-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-sm font-bold rounded-xl transition-all shadow-lg active:scale-95"
+            onClick={() => setCurrentView("settings")}
+            className="flex items-center gap-2 px-4 py-2.5 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
           >
-            Save All
+            <Settings size={22} />
           </button>
         </div>
       </header>
 
-      {/* MAIN SPLIT-SCREEN AREA */}
       <main className="flex-1 flex overflow-hidden">
-        {/* LEFT: CANVAS */}
         <div className="flex-1 relative bg-[#09090b] flex items-center justify-center border-r border-zinc-800/50 overflow-hidden">
           <div
             className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -1245,30 +1113,71 @@ export default function ControlPanel() {
             }}
           ></div>
 
-          <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-center z-20 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-20 pointer-events-none">
             <div
-              className="flex items-center gap-4 w-1/2 pointer-events-auto"
+              className="flex items-start gap-4 w-2/3 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <input
-                type="text"
-                value={activeProfile?.name || ""}
-                onChange={(e) => handleProfileNameChange(e.target.value)}
-                className={`bg-transparent text-2xl font-bold text-white focus:outline-none border-b border-transparent focus:border-indigo-500/50 transition-colors w-full placeholder-zinc-700`}
-                placeholder="Enter Profile Name..."
-                spellCheck={false}
-              />
+              {activeFolderId && (
+                <button
+                  onClick={() => {
+                    setActiveFolderId(null);
+                    setEditingId(null);
+                  }}
+                  className="flex items-center justify-center w-10 h-10 mt-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-colors shadow-md shrink-0"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+
+              <div className="flex flex-col gap-2 w-full max-w-[300px]">
+                <input
+                  type="text"
+                  value={
+                    activeFolderId
+                      ? activeProfile?.slices.find(
+                          (s) => s.id === activeFolderId,
+                        )?.label || "Folder"
+                      : activeProfile?.name || ""
+                  }
+                  onChange={(e) => {
+                    if (!activeFolderId)
+                      handleProfileNameChange(e.target.value);
+                  }}
+                  readOnly={!!activeFolderId}
+                  className={`bg-transparent text-2xl font-bold text-white focus:outline-none border-b border-transparent ${!activeFolderId && "focus:border-indigo-500/50"} transition-colors w-full placeholder-zinc-700`}
+                  placeholder="Enter Profile Name..."
+                  spellCheck={false}
+                />
+
+                {!activeFolderId &&
+                  (activeProfile?.isDefault ? (
+                    <span className="flex items-center gap-2 px-3 py-1.5 text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg text-xs font-semibold w-fit">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]"></div>
+                      Active Profile
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleSetDefaultProfile}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-semibold border border-zinc-700 transition-all shadow-sm w-fit pointer-events-auto"
+                    >
+                      Use this profile
+                    </button>
+                  ))}
+              </div>
             </div>
 
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteProfile();
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
-            >
-              <Trash2 size={16} /> Delete Profile
-            </button>
+            {!activeFolderId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteProfile();
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
+              >
+                <Trash2 size={16} /> Delete Profile
+              </button>
+            )}
           </div>
 
           <button
@@ -1276,18 +1185,16 @@ export default function ControlPanel() {
               e.stopPropagation();
               handleExport();
             }}
-            className="absolute bottom-8 left-8 flex items-center gap-2 px-4 py-2.5 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-sm font-medium border border-zinc-700/50 transition-all shadow-lg backdrop-blur-sm z-20"
+            className="absolute bottom-8 left-8 flex items-center gap-2 px-4 py-2.5 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-sm font-medium border border-zinc-700/50 transition-all shadow-lg backdrop-blur-sm z-20 pointer-events-auto"
           >
             <Upload size={16} /> Export Profile
           </button>
 
-          {/* Radial Canvas */}
           <div
             ref={canvasRef}
             className="relative w-[600px] h-[600px] flex items-center justify-center mt-12"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Center Anchor */}
             <div
               className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] z-0 flex items-center justify-center"
               style={{ transform: "translate(-50%, -50%)" }}
@@ -1299,10 +1206,7 @@ export default function ControlPanel() {
               />
             </div>
 
-            {/* วงแหวนหลัก (Main Ring) */}
             {renderRing(rootSlices, R_MAIN, false)}
-
-            {/* วงแหวนโฟลเดอร์ (Outer Ring Arc) */}
             {activeFolderId &&
               renderRing(
                 rootSlices.find((s) => s.id === activeFolderId)?.children || [],
@@ -1311,23 +1215,51 @@ export default function ControlPanel() {
               )}
           </div>
 
-          {/* ข้อ 1: ปุ่ม + ลอยหน้าสุด */}
           <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               handleNewSlice();
             }}
-            className="absolute bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all hover:scale-105 active:scale-95 z-50"
+            className="absolute bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all hover:scale-105 active:scale-95 z-50 pointer-events-auto"
             title="Add New Slice"
           >
             <Plus size={28} />
           </button>
         </div>
 
+        <div
+          className="w-1.5 bg-zinc-800 hover:bg-indigo-500 cursor-col-resize shrink-0 z-50 transition-colors"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            const startX = e.clientX;
+            const rightPanel = document.getElementById("right-editor-panel");
+            if (!rightPanel) return;
+            const startWidth = rightPanel.offsetWidth;
+
+            const onMove = (moveEvent: PointerEvent) => {
+              const delta = startX - moveEvent.clientX;
+              const newWidth = Math.max(320, Math.min(startWidth + delta, 800));
+              rightPanel.style.width = `${newWidth}px`;
+            };
+
+            const onUp = () => {
+              window.removeEventListener("pointermove", onMove);
+              window.removeEventListener("pointerup", onUp);
+              document.body.style.cursor = "default";
+            };
+
+            document.body.style.cursor = "col-resize";
+            window.addEventListener("pointermove", onMove);
+            window.addEventListener("pointerup", onUp);
+          }}
+        />
+
         {/* RIGHT: SLICE EDITOR PANEL */}
         <div
-          className="w-1/3 min-w-[360px] max-w-[480px] shrink-0 bg-[#0c0c0e] overflow-y-auto"
+          id="right-editor-panel"
+          className="shrink-0 bg-[#0c0c0e] overflow-y-auto"
+          style={{ width: 400 }}
           onClick={(e) => e.stopPropagation()}
         >
           {editingSlice ? (
@@ -1335,7 +1267,6 @@ export default function ControlPanel() {
               key={editingSlice.id}
               slice={editingSlice}
               onChange={handleUpdateSlice}
-              onCancel={handleCancelEdit}
               onDelete={handleDeleteSlice}
               isChildItem={isEditingChild}
             />
