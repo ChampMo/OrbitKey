@@ -1,5 +1,5 @@
 /**
- * ControlPanel.tsx — Action Ring Settings Dashboard (Ultimate Arc Version)
+ * ControlPanel.tsx — Action Ring Settings Dashboard (Ultimate Pixel-Perfect Version)
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -119,7 +119,9 @@ const ACTION_DATA_PLACEHOLDERS: Record<ActionTypeValue, string> = {
   folder: "Items inside this folder appear in the outer ring.",
 };
 
-// ─── 3. Helper Functions ──────────────────────────────────────────────────
+const R_MAIN = 140;
+const R_OUTER = 240;
+
 function uid(): string {
   return Math.random().toString(36).slice(2, 11);
 }
@@ -143,11 +145,13 @@ function SliceEditor({
   onChange,
   onDelete,
   onCancel,
+  isChildItem, // พร็อพใหม่ เพื่อเช็คว่าเป็นไอเท็มวงลูกหรือไม่
 }: {
   slice: ApiSlice;
   onChange: (updated: ApiSlice) => void;
   onDelete: () => void;
   onCancel: () => void;
+  isChildItem: boolean;
 }) {
   const labelRef = useRef<HTMLInputElement>(null);
   const actionInputRef = useRef<HTMLInputElement>(null);
@@ -197,6 +201,17 @@ function SliceEditor({
       setIsRecording(false);
     }
   };
+
+  // ** ข้อ 2 & 3: จัดการปุ่ม Action Type **
+  const availableTypes: ActionTypeValue[] = isChildItem
+    ? ["shortcut", "launch", "script"] // วงลูกไม่มีปุ่ม Folder
+    : ["shortcut", "launch", "script", "folder"];
+
+  // ถ้าเป็น Folder และมีลูกอยู่ข้างใน ห้ามเปลี่ยนเป็น Type อื่น
+  const hasChildren =
+    slice.actionType === "folder" &&
+    slice.children &&
+    slice.children.length > 0;
 
   return (
     <div className="h-full flex flex-col bg-[#0c0c0e] p-8 space-y-6">
@@ -305,28 +320,40 @@ function SliceEditor({
       </div>
 
       <div className="space-y-1.5">
-        <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-          Action Type
-        </label>
+        <div className="flex justify-between items-end">
+          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+            Action Type
+          </label>
+          {hasChildren && (
+            <span className="text-[10px] text-rose-400">
+              Clear items inside to change type
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
-          {(
-            ["shortcut", "launch", "script", "folder"] as ActionTypeValue[]
-          ).map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                onChange({
-                  ...slice,
-                  actionType: t,
-                  actionData: t === "folder" ? "" : slice.actionData,
-                  children: t === "folder" ? slice.children || [] : null,
-                });
-              }}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${slice.actionType === t ? ACTION_TYPE_COLORS[t] + " shadow-md" : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"}`}
-            >
-              {ACTION_TYPE_LABELS[t]}
-            </button>
-          ))}
+          {availableTypes.map((t) => {
+            const isDisabled = hasChildren && t !== "folder";
+            return (
+              <button
+                key={t}
+                disabled={isDisabled}
+                onClick={() => {
+                  onChange({
+                    ...slice,
+                    actionType: t,
+                    actionData: t === "folder" ? "" : slice.actionData,
+                    children: t === "folder" ? slice.children || [] : null,
+                  });
+                }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all duration-200
+                  ${slice.actionType === t ? ACTION_TYPE_COLORS[t] + " shadow-md" : "border-zinc-800 bg-zinc-950 text-zinc-500"}
+                  ${isDisabled ? "opacity-30 cursor-not-allowed" : "hover:text-zinc-300 hover:bg-zinc-900"}
+                `}
+              >
+                {ACTION_TYPE_LABELS[t]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -402,22 +429,35 @@ export default function ControlPanel() {
     onConfirm: () => void;
   } | null>(null);
 
-  // --- Real-time Fast Swap (Live Order) States ---
+  const canvasRef = useRef<HTMLDivElement>(null);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const lastHoveredId = useRef<string | null>(null); // ป้องกันการรีเรนเดอร์รัวๆ
-  const [liveOrder, setLiveOrder] = useState<string[] | null>(null); // เก็บ Order ชั่วคราวตอนกำลังลาก เพื่อให้แสดงอนิเมชั่นสลับที่ลื่นๆ
+  const lastHoveredId = useRef<string | null>(null);
+  const [liveOrder, setLiveOrder] = useState<string[] | null>(null);
 
   const activeProfile = profiles[activeProfileIndex];
   const rootSlices = activeProfile?.slices ?? [];
 
-  let editingSlice = rootSlices.find((s) => s.id === editingId);
-  if (!editingSlice && activeFolderId) {
-    const folder = rootSlices.find((s) => s.id === activeFolderId);
-    editingSlice = folder?.children?.find((s) => s.id === editingId);
-  }
+  // หา Editing Slice
+  const editingSlice = (() => {
+    if (!editingId) return undefined;
+    let found = rootSlices.find((s) => s.id === editingId);
+    if (!found && activeFolderId) {
+      found = rootSlices
+        .find((s) => s.id === activeFolderId)
+        ?.children?.find((s) => s.id === editingId);
+    }
+    return found;
+  })();
+
+  const isEditingChild = !!(
+    activeFolderId &&
+    rootSlices
+      .find((s) => s.id === activeFolderId)
+      ?.children?.some((c) => c.id === editingId)
+  );
 
   // --- Fetch Initial Data ---
   useEffect(() => {
@@ -523,11 +563,14 @@ export default function ControlPanel() {
   }
 
   function handleNewSlice() {
+    if (isCreatingNew) return; // กันกดปุ่มบวกรัวๆ
+
     const newSlice = emptySlice();
     setProfiles((prev) =>
       prev.map((p, i) => {
         if (i !== activeProfileIndex) return p;
         let newSlices = [...p.slices];
+
         if (activeFolderId) {
           const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
           if (folderIdx !== -1) {
@@ -592,15 +635,20 @@ export default function ControlPanel() {
   function handleDeleteSlice() {
     if (!editingId) return;
     setConfirmModal({
-      title: "Delete Slice",
+      title: "Delete Item",
       message:
-        "Are you sure you want to delete this slice? This action cannot be undone.",
+        "Are you sure you want to delete this item? This action cannot be undone.",
       onConfirm: () => {
         setProfiles((prev) =>
           prev.map((p, i) => {
             if (i !== activeProfileIndex) return p;
             let newSlices = [...p.slices];
-            if (activeFolderId) {
+
+            const rootIdx = newSlices.findIndex((s) => s.id === editingId);
+            if (rootIdx !== -1) {
+              newSlices.splice(rootIdx, 1);
+              if (activeFolderId === editingId) setActiveFolderId(null);
+            } else if (activeFolderId) {
               newSlices = newSlices.map((s) =>
                 s.id === activeFolderId
                   ? {
@@ -611,8 +659,6 @@ export default function ControlPanel() {
                     }
                   : s,
               );
-            } else {
-              newSlices = newSlices.filter((s) => s.id !== editingId);
             }
             return { ...p, slices: newSlices };
           }),
@@ -642,7 +688,43 @@ export default function ControlPanel() {
     });
   }
 
-  // --- Fast Pointer Drag & Drop Logic (No Lag) ---
+  // --- Fast Pointer Drag & Drop Logic ---
+  const handleSwapSlice = (idA: string, idB: string) => {
+    setProfiles((prevProfiles) =>
+      prevProfiles.map((profile, idx) => {
+        if (idx !== activeProfileIndex) return profile;
+        let newSlices = [...profile.slices];
+
+        const swapInArray = (arr: ApiSlice[]) => {
+          const idxA = arr.findIndex((s) => s.id === idA);
+          const idxB = arr.findIndex((s) => s.id === idB);
+          if (idxA !== -1 && idxB !== -1) {
+            const temp = arr[idxA];
+            arr[idxA] = arr[idxB];
+            arr[idxB] = temp;
+            return true;
+          }
+          return false;
+        };
+
+        if (!swapInArray(newSlices)) {
+          if (activeFolderId) {
+            const fIdx = newSlices.findIndex((s) => s.id === activeFolderId);
+            if (fIdx !== -1 && newSlices[fIdx].children) {
+              const newChildren = [...newSlices[fIdx].children];
+              if (swapInArray(newChildren)) {
+                newSlices[fIdx] = { ...newSlices[fIdx], children: newChildren };
+              }
+            }
+          }
+        }
+        return { ...profile, slices: newSlices };
+      }),
+    );
+    setIsDirty(true);
+    setDirtySliceIds((prev) => new Set(prev).add(idA).add(idB));
+  };
+
   const handlePointerDown = (e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -655,12 +737,10 @@ export default function ControlPanel() {
     const dx = e.clientX - dragStartPos.current.x;
     const dy = e.clientY - dragStartPos.current.y;
 
-    // เริ่มลาก (ขยับเกิน 5px)
     if (!draggedId && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       const id = e.currentTarget.getAttribute("data-slice-id");
       if (id) {
         setDraggedId(id);
-        // เซ็ต Live Order พื้นฐานไว้เตรียมสลับที่
         const sourceSlices =
           activeFolderId &&
           rootSlices
@@ -672,7 +752,6 @@ export default function ControlPanel() {
       }
     }
 
-    // กำลังลาก
     if (draggedId) {
       setDragPos({ x: e.clientX, y: e.clientY });
 
@@ -681,7 +760,7 @@ export default function ControlPanel() {
 
       if (targetBtn) {
         const targetId = targetBtn.getAttribute("data-slice-id");
-        // Throttle: อัปเดตเฉพาะตอนเป้าหมายเปลี่ยน เพื่อลดอาการค้าง
+
         if (
           targetId &&
           targetId !== draggedId &&
@@ -714,25 +793,13 @@ export default function ControlPanel() {
               targetSlice.actionType === "folder" &&
               draggedSlice.actionType !== "folder"
             ) {
-              // เล็งเข้าโฟลเดอร์ ให้เรืองแสงเฉยๆ
               setHoveredId(targetId);
             } else {
-              // **Real-time Swap!** สลับ Array ชั่วคราวใน Live Order เพื่ออนิเมชั่นลื่นๆ
-              setLiveOrder((prev) => {
-                if (!prev) return prev;
-                const newOrder = [...prev];
-                const fromIdx = newOrder.indexOf(draggedId);
-                const toIdx = newOrder.indexOf(targetId);
-                if (fromIdx !== -1 && toIdx !== -1) {
-                  newOrder.splice(fromIdx, 1);
-                  newOrder.splice(toIdx, 0, draggedId);
-                }
-                return newOrder;
-              });
+              handleSwapSlice(draggedId, targetId);
               setHoveredId(null);
             }
           } else if (!isSameLevel) {
-            setHoveredId(targetId); // ข้ามระดับวงแหวน ให้เรืองแสงอย่างเดียว
+            setHoveredId(targetId);
           }
         }
       } else {
@@ -746,15 +813,70 @@ export default function ControlPanel() {
     if (!dragStartPos.current) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
 
+    // ดึงของออกจากโฟลเดอร์
+    if (draggedId && activeFolderId) {
+      const isDraggedChild = rootSlices
+        .find((s) => s.id === activeFolderId)
+        ?.children?.some((c) => c.id === draggedId);
+
+      if (isDraggedChild && dragPos && canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const localX = dragPos.x - rect.left;
+        const localY = dragPos.y - rect.top;
+        const dx = localX - rect.width / 2;
+        const dy = localY - rect.height / 2;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (!hoveredId && dist > 80 && dist < 170) {
+          setProfiles((prev) =>
+            prev.map((p, idx) => {
+              if (idx !== activeProfileIndex) return p;
+              const newSlices = [...p.slices];
+              const folderIdx = newSlices.findIndex(
+                (s) => s.id === activeFolderId,
+              );
+
+              if (folderIdx !== -1) {
+                const folder = { ...newSlices[folderIdx] };
+                const draggedChild = folder.children?.find(
+                  (c) => c.id === draggedId,
+                );
+
+                if (draggedChild) {
+                  folder.children = (folder.children || []).filter(
+                    (c) => c.id !== draggedId,
+                  );
+                  newSlices[folderIdx] = folder;
+                  newSlices.push(draggedChild);
+                }
+              }
+              return { ...p, slices: newSlices };
+            }),
+          );
+
+          setActiveFolderId(null);
+          setEditingId(null);
+          setIsDirty(true);
+          setDirtySliceIds((prev) => new Set(prev).add(draggedId));
+
+          dragStartPos.current = null;
+          lastHoveredId.current = null;
+          setDraggedId(null);
+          setDragPos(null);
+          setHoveredId(null);
+          setLiveOrder(null);
+          return;
+        }
+      }
+    }
+
     if (!draggedId) {
-      handleStartEdit(slice); // คลิกธรรมดา
+      handleStartEdit(slice);
     } else {
-      // จบการลาก
       if (
         hoveredId &&
         rootSlices.find((s) => s.id === hoveredId)?.actionType === "folder"
       ) {
-        // Drop เข้าไปใน Folder
         setProfiles((prevProfiles) =>
           prevProfiles.map((profile, idx) => {
             if (idx !== activeProfileIndex) return profile;
@@ -777,13 +899,11 @@ export default function ControlPanel() {
         setIsDirty(true);
         setDirtySliceIds((prev) => new Set(prev).add(draggedId).add(hoveredId));
       } else if (liveOrder) {
-        // วางปุ่ม สลับตำแหน่งจริงใน State
         setProfiles((prevProfiles) =>
           prevProfiles.map((profile, idx) => {
             if (idx !== activeProfileIndex) return profile;
             let newSlices = [...profile.slices];
 
-            // เช็คว่าลากอยู่ในโฟลเดอร์ หรือวงหลัก
             const isDraggingInFolder =
               activeFolderId &&
               rootSlices
@@ -862,20 +982,15 @@ export default function ControlPanel() {
     radius: number,
     isOuter: boolean,
   ) => {
-    // ถ้าวงนี้กำลังโดนลาก ให้ใช้ลำดับจาก Live Order เพื่อความสมูท
     const isDraggingInThisRing =
       draggedId && liveOrder && isOuter === !!activeFolderId;
     const orderArray = isDraggingInThisRing
       ? liveOrder
       : slicesToRender.map((s) => s.id);
 
-    // หามุมของ Folder แม่ เพื่อวางวงแหวนลูก
     let parentAngle = 0;
     if (isOuter && activeFolderId) {
-      const rootOrder =
-        draggedId && liveOrder && !isOuter
-          ? liveOrder
-          : rootSlices.map((s) => s.id);
+      const rootOrder = rootSlices.map((s) => s.id);
       const folderIdx = rootOrder.indexOf(activeFolderId);
       if (folderIdx !== -1) {
         parentAngle =
@@ -883,9 +998,11 @@ export default function ControlPanel() {
       }
     }
 
-    return slicesToRender.map((slice) => {
+    const elements: React.ReactNode[] = [];
+
+    slicesToRender.forEach((slice) => {
       const i = orderArray.indexOf(slice.id);
-      if (i === -1) return null;
+      if (i === -1) return;
 
       const total = orderArray.length;
       let angle = 0;
@@ -893,8 +1010,7 @@ export default function ControlPanel() {
       if (!isOuter) {
         angle = (i / total) * 2 * Math.PI - Math.PI / 2;
       } else {
-        // Arc Spacing: จัดเรียงวงย่อยให้แผ่ออกเป็นทรงพัด รอบๆ โฟลเดอร์แม่
-        const step = Math.PI / 5; // กางออกชิ้นละ 36 องศา
+        const step = Math.PI / 6.5;
         const arcSpan = (total - 1) * step;
         angle = parentAngle - arcSpan / 2 + i * step;
       }
@@ -909,15 +1025,44 @@ export default function ControlPanel() {
       const isActiveFolder = activeFolderId === slice.id;
       const SliceIcon = ICON_MAP[slice.icon || "Zap"] || Zap;
 
-      return (
+      if (slice.actionType === "folder" && !isOuter) {
+        const arrowR = radius + 32 + 15;
+        const arrowX = Math.cos(angle) * arrowR;
+        const arrowY = Math.sin(angle) * arrowR;
+
+        // **ข้อ 4: ลูกศรล็อกตำแหน่งกึ่งกลาง 100% ไม่มีเบี้ยว**
+        elements.push(
+          <div
+            key={`${slice.id}-floating-arrow`}
+            className={`absolute pointer-events-none transition-all duration-300 w-8 h-8 flex items-center justify-center rounded-full duration-300
+                   ${isActiveFolder ? " text-blue-500" : " text-zinc-400"}
+                `}
+            style={{
+              left: "50%",
+              top: "50%",
+              transform: `translate(calc(-50% + ${arrowX}px), calc(-50% + ${arrowY}px))`,
+              zIndex: 5,
+            }}
+          >
+            <ChevronRight
+              size={isActiveFolder ? "24" : "18"}
+              strokeWidth={3}
+              style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }}
+            />
+          </div>,
+        );
+      }
+
+      // ** ข้อ 4: ปุ่มหลัก ล็อกกึ่งกลาง 100% **
+      elements.push(
         <button
           key={slice.id}
           data-slice-id={slice.id}
           onPointerDown={(e) => handlePointerDown(e, slice.id)}
           onPointerMove={handlePointerMove}
           onPointerUp={(e) => handlePointerUp(e, slice)}
-          className={`absolute w-[64px] h-[64px] rounded-full flex flex-col items-center justify-center gap-1 shadow-xl transition-all duration-300 z-10 touch-none
-            ${isBeingDragged ? "opacity-30 scale-90 ring-2 ring-indigo-500" : ""}
+          className={`absolute w-[64px] h-[64px] rounded-full flex items-center justify-center shadow-xl transition-all duration-300 z-10 touch-none
+            ${isBeingDragged ? "opacity-0 pointer-events-none" : ""}
             ${isSelected && !isBeingDragged ? "ring-4 ring-indigo-500/50 scale-110" : !isBeingDragged && "hover:scale-110"}
             ${isBeingHovered && slice.actionType === "folder" ? "ring-4 ring-rose-500 scale-125" : ""}
             ${isDirtySlice && !isSelected && !isBeingHovered && !isBeingDragged ? "ring-2 ring-amber-400 border-transparent" : ""}
@@ -925,10 +1070,12 @@ export default function ControlPanel() {
             ${isOuter ? "scale-90 opacity-95" : ""}
           `}
           style={{
+            left: "50%",
+            top: "50%",
             backgroundColor: slice.color ? `${slice.color}50` : "#333",
             backdropFilter: "blur(8px)",
-            transform: `translate(${x}px, ${y}px)`,
-            cursor: isBeingDragged ? "grabbing" : "grab",
+            transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+            cursor: "grab",
             zIndex: isBeingDragged ? 0 : isSelected ? 30 : 10,
           }}
         >
@@ -936,22 +1083,11 @@ export default function ControlPanel() {
             size={isOuter ? 22 : 26}
             style={{ color: slice.color || "#fff" }}
           />
-
-          {/* Arrow Indicator สำหรับบอกว่าเป็น Folder */}
-          {slice.actionType === "folder" && !isOuter && (
-            <div
-              className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all ${isActiveFolder ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)] text-white scale-110" : "bg-zinc-800 border border-zinc-600 text-zinc-400"}`}
-            >
-              {/* หมุนหัวลูกศรออกด้านนอกตามรัศมีเสมอ */}
-              <ChevronRight
-                size={14}
-                style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }}
-              />
-            </div>
-          )}
-        </button>
+        </button>,
       );
     });
+
+    return elements;
   };
 
   // --- Render ---
@@ -1021,7 +1157,7 @@ export default function ControlPanel() {
           const SliceIcon = ICON_MAP[draggedSlice.icon || "Zap"] || Zap;
           return (
             <div
-              className="fixed pointer-events-none z-[100] w-[64px] h-[64px] rounded-full flex flex-col items-center justify-center shadow-2xl scale-110 ring-4 ring-indigo-500/80"
+              className="fixed pointer-events-none z-[100] w-[64px] h-[64px] rounded-full flex items-center justify-center shadow-2xl scale-110 ring-4 ring-indigo-500/80"
               style={{
                 left: dragPos.x,
                 top: dragPos.y,
@@ -1147,10 +1283,15 @@ export default function ControlPanel() {
 
           {/* Radial Canvas */}
           <div
+            ref={canvasRef}
             className="relative w-[600px] h-[600px] flex items-center justify-center mt-12"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] z-0 flex items-center justify-center">
+            {/* Center Anchor */}
+            <div
+              className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] z-0 flex items-center justify-center"
+              style={{ transform: "translate(-50%, -50%)" }}
+            >
               <X
                 className="text-zinc-600 opacity-50"
                 size={28}
@@ -1158,24 +1299,26 @@ export default function ControlPanel() {
               />
             </div>
 
-            {/* วงแหวนหลัก (Main Ring) รัศมี 140 */}
-            {renderRing(rootSlices, 140, false)}
+            {/* วงแหวนหลัก (Main Ring) */}
+            {renderRing(rootSlices, R_MAIN, false)}
 
-            {/* วงแหวนโฟลเดอร์ (Outer Ring Arc) รัศมี 240 */}
+            {/* วงแหวนโฟลเดอร์ (Outer Ring Arc) */}
             {activeFolderId &&
               renderRing(
                 rootSlices.find((s) => s.id === activeFolderId)?.children || [],
-                240,
+                R_OUTER,
                 true,
               )}
           </div>
 
+          {/* ข้อ 1: ปุ่ม + ลอยหน้าสุด */}
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               handleNewSlice();
             }}
-            className="absolute bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all hover:scale-105 active:scale-95 z-20"
+            className="absolute bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all hover:scale-105 active:scale-95 z-50"
             title="Add New Slice"
           >
             <Plus size={28} />
@@ -1194,6 +1337,7 @@ export default function ControlPanel() {
               onChange={handleUpdateSlice}
               onCancel={handleCancelEdit}
               onDelete={handleDeleteSlice}
+              isChildItem={isEditingChild}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 p-8 text-center opacity-60">
