@@ -17,7 +17,7 @@ pub fn setup_hotkeys(handle: &AppHandle) -> Result<(), Box<dyn std::error::Error
     // Alt+Q — summon / dismiss the Action Ring
     handle
         .global_shortcut()
-        .on_shortcut("Alt+Q", move |_handle, _shortcut, event| {
+        .on_shortcut("Control+Shift+Q", move |_handle, _shortcut, event| {
             if event.state() == ShortcutState::Pressed {
                 if let Err(e) = window_manager::show_action_ring(&app) {
                     eprintln!("[action-ring] Failed to show ring: {e}");
@@ -25,6 +25,6 @@ pub fn setup_hotkeys(handle: &AppHandle) -> Result<(), Box<dyn std::error::Error
             }
         })?;
 
-    println!("[action-ring] Global hotkey registered: Alt+Q");
+    println!("[action-ring] Global hotkey registered: Control+Shift+Q");
     Ok(())
 }

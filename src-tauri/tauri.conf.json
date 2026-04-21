@@ -35,17 +35,20 @@
         "resizable": false,
         "decorations": false,
         "transparent": true,
+        "backgroundColor": "#00000000",
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
         "center": false,
         "shadow": false,
-        "focus": false
+        "focus": false,
+        "fullscreen": false
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
 
   "bundle": {

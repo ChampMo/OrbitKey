@@ -132,7 +132,7 @@ fn parse_key(s: &str) -> Result<Key, String> {
         "backspace" | "bksp" => Ok(Key::Backspace),
         "delete" | "del" => Ok(Key::Delete),
         "escape" | "esc" => Ok(Key::Escape),
-        "insert" | "ins" => Ok(Key::Insert),
+        "insert" | "ins" => Ok(Key::Home),
         // ── Arrow keys ────────────────────────────────────────────────────
         "up" | "uparrow" => Ok(Key::UpArrow),
         "down" | "downarrow" => Ok(Key::DownArrow),
@@ -222,7 +222,9 @@ pub fn launch_target(target: &str) -> Result<(), String> {
 fn open_with_default_app(target: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        spawn_detached(Command::new("open").arg(target))
+        let mut cmd = Command::new("open");
+        cmd.arg(target);
+        spawn_detached(cmd)
             .map_err(|e| format!("macOS `open` failed for {target:?}: {e}"))?;
     }
 

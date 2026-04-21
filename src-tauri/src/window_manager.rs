@@ -18,28 +18,36 @@ pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
         .get_webview_window(RING_WINDOW_LABEL)
         .ok_or("action-ring window not found")?;
 
-    // cursor_position() returns global screen coordinates in *physical* pixels.
-    let cursor_pos = ring_window.cursor_position()?;
+    // --- ส่วนที่แก้ไขเพื่อรองรับ macOS และลด Error ---
+    
+    // ใน Tauri v2 เมธอด set_transparent ไม่มีให้เรียกใช้แบบไดนามิก 
+    // เราต้องมั่นใจว่าตั้งค่าใน tauri.conf.json แล้ว
+    
+    // ปิดเงาหน้าต่าง (Shadow) เฉพาะบน Mac เพื่อลบขอบขาวสี่เหลี่ยม
+    #[cfg(target_os = "macos")]
+    {
+        // ใช้ set_shadow จาก trait Manager หรือ window handle ตรงๆ
+        let _ = ring_window.set_shadow(false);
+    }
 
-    // scale_factor() accounts for Hi-DPI (e.g., 2.0 on a Retina display).
+    // ปิด Decorations (แถบหัวหน้าต่าง)
+    let _ = ring_window.set_decorations(false);
+    // ----------------------------------------------
+
+    let cursor_pos = ring_window.cursor_position()?;
     let scale = ring_window.scale_factor().unwrap_or(1.0);
     let physical_half = (RING_WINDOW_SIZE * scale) / 2.0;
 
-    // Position the top-left corner so the center lands on the cursor.
     let x = (cursor_pos.x - physical_half) as i32;
     let y = (cursor_pos.y - physical_half) as i32;
 
     ring_window.set_position(PhysicalPosition::new(x, y))?;
+    
     ring_window.show()?;
     ring_window.set_focus()?;
 
-    // Tell the React UI to animate in. Payload is `null` (unit type).
     ring_window.emit("ring:show", ())?;
 
-    println!(
-        "[action-ring] Ring shown at physical ({}, {}), cursor at ({:.0}, {:.0})",
-        x, y, cursor_pos.x, cursor_pos.y
-    );
     Ok(())
 }
 

@@ -41,6 +41,8 @@ pub fn run() {
             commands::get_profiles,
             commands::save_profiles,
             commands::get_hotkey,
+            commands::export_profile,
+            commands::import_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -163,7 +163,22 @@ fn mk(
         icon: Some(icon.to_string()),
         color: Some(color.to_string()),
         action_type,
-        action_data: action_data.to_string(),
+        action_data: Some(action_data.to_string()), // แก้เป็น Some()
         script_args: vec![],
+        children: None, // เพิ่มฟิลด์ children
+    }
+}
+
+/// ฟังก์ชันสำหรับสร้าง Folder (ไม่มี action_data แต่มีลูกได้)
+fn mk_folder(id: &str, label: &str, icon: &str, color: &str, children: Vec<ActionSlice>) -> ActionSlice {
+    ActionSlice {
+        id: id.to_string(),
+        label: label.to_string(),
+        icon: Some(icon.to_string()),
+        color: Some(color.to_string()),
+        action_type: ActionType::Folder,
+        action_data: None, // Folder ไม่ต้องมีคำสั่ง
+        script_args: vec![],
+        children: Some(children), // ใส่ลูกๆ ลงไปตรงนี้
     }
 }

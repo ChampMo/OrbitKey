@@ -1,132 +1,137 @@
-//! Tauri commands exposed to the React frontend via `invoke()`.
-//!
-//! ## Command catalogue
-//!
-//! | Command            | Async  | Description                                         |
-//! |--------------------|--------|-----------------------------------------------------|
-//! | `hide_action_ring` | no     | Hide the overlay window immediately                 |
-//! | `execute_action`   | **yes**| Dispatch a slice action (shortcut / launch / script)|
-//! | `get_profiles`     | no     | Load profiles from `profiles.json` (or create default) |
-//! | `save_profiles`    | no     | Persist the full profiles list to `profiles.json`   |
-//! | `get_hotkey`       | no     | Return the current summon hotkey string             |
+use crate::actions;
+use crate::state::{ActionSlice, ActionType, AppState, Profile};
+use crate::storage;
+use crate::window_manager;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
 
-use std::time::Duration;
-
-use tauri::{AppHandle, State};
-
-use crate::{
-    actions,
-    state::{ActionType, AppState, Profile},
-    storage, window_manager,
-};
-
-// ─── Action payload ───────────────────────────────────────────────────────────
-
-/// Sent by React when the user clicks a slice.
-///
-/// Matches the TypeScript `ActionPayload` interface — only execution-relevant
-/// fields; display fields (icon, color) stay in the frontend.
-///
-/// ## JSON wire format
-/// ```json
-/// { "actionType": "shortcut", "actionData": "ctrl+c",            "scriptArgs": [] }
-/// { "actionType": "launch",   "actionData": "https://google.com", "scriptArgs": [] }
-/// { "actionType": "script",   "actionData": "/path/to/run.py",   "scriptArgs": ["--verbose"] }
-/// ```
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ActionPayload {
-    pub action_type: ActionType,
-    pub action_data: String,
-    #[serde(default)]
-    pub script_args: Vec<String>,
-}
-
-// ─── Window control ───────────────────────────────────────────────────────────
-
-/// Hide the Action Ring window.
-///
-/// Called by React when the user dismisses the ring without selecting a slice
-/// (Escape key or click outside).  When a slice IS selected, [`execute_action`]
-/// handles the hide internally, so React should not call this separately.
 #[tauri::command]
 pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
     window_manager::hide_action_ring(&app).map_err(|e| e.to_string())
 }
 
-// ─── Action execution ─────────────────────────────────────────────────────────
-
-/// Execute the action associated with a clicked slice.
-///
-/// ## Flow
-/// 1. Hide ring immediately (sync).
-/// 2. `await` 100 ms so the OS can restore focus to the previous window.
-/// 3. Dispatch on a `spawn_blocking` thread so enigo / Command::output()
-///    never block Tauri's async event loop.
 #[tauri::command]
-pub async fn execute_action(app: AppHandle, action: ActionPayload) -> Result<(), String> {
-    let label = format!("[{:?}] {:?}", action.action_type, action.action_data);
-
-    window_manager::hide_action_ring(&app).map_err(|e| format!("hide ring: {e}"))?;
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
+pub async fn execute_action(app: AppHandle, action: ActionSlice) -> Result<(), String> {
+    window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
 
     let result: Result<(), String> = match action.action_type {
         ActionType::Shortcut => {
-            let data = action.action_data;
+            let data = action.action_data.unwrap_or_default();
             tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data))
                 .await
                 .map_err(|e| format!("shortcut task panicked: {e}"))
                 .and_then(|r| r)
         }
         ActionType::Launch => {
-            let data = action.action_data;
+            let data = action.action_data.unwrap_or_default();
             tokio::task::spawn_blocking(move || actions::launch_target(&data))
                 .await
                 .map_err(|e| format!("launch task panicked: {e}"))
                 .and_then(|r| r)
         }
         ActionType::Script => {
-            let path = action.action_data;
+            let path = action.action_data.unwrap_or_default();
             let args = action.script_args;
             tokio::task::spawn_blocking(move || actions::run_script(&path, &args).map(|_| ()))
                 .await
                 .map_err(|e| format!("script task panicked: {e}"))
                 .and_then(|r| r)
         }
+        ActionType::Folder => {
+            // โฟลเดอร์ไม่ต้องทำอะไรตอนรัน
+            Ok(())
+        }
     };
 
-    if let Err(ref e) = result {
-        eprintln!("[action-ring] execute_action failed — {label}: {e}");
+    if let Err(e) = &result {
+        println!("[action-ring] execute_action failed — {e}");
     }
     result
 }
 
-// ─── Profile persistence ──────────────────────────────────────────────────────
-
-/// Load all profiles from `profiles.json`.
-///
-/// On first launch (file absent) the factory defaults are written and returned.
-/// The Action Ring calls this every time it is summoned to pick up changes
-/// made in the Control Panel since the last show.
 #[tauri::command]
 pub fn get_profiles(app: AppHandle) -> Result<Vec<Profile>, String> {
     storage::load_profiles(&app)
 }
 
-/// Persist the complete profiles list to `profiles.json`.
-///
-/// The Control Panel sends the full updated list; the backend replaces the
-/// file atomically so no partial writes occur.
 #[tauri::command]
-pub fn save_profiles(app: AppHandle, profiles: Vec<Profile>) -> Result<(), String> {
+pub fn save_profiles(app: tauri::AppHandle, profiles: Vec<Profile>) -> Result<(), String> {
     storage::write_profiles(&app, &profiles)
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
-
-/// Return the currently configured summon hotkey string (e.g. `"Alt+Q"`).
 #[tauri::command]
-pub fn get_hotkey(state: State<'_, AppState>) -> String {
-    state.active_hotkey.lock().unwrap().clone()
+pub fn get_hotkey(state: State<'_, AppState>) -> Result<String, String> {
+    let hotkey = state.active_hotkey.lock().unwrap().clone();
+    Ok(hotkey)
+}
+
+#[tauri::command]
+pub fn get_active_hotkey(state: State<'_, AppState>) -> Result<String, String> {
+    let hotkey = state.active_hotkey.lock().unwrap().clone();
+    Ok(hotkey)
+}
+
+#[tauri::command]
+pub fn set_hotkey(
+    _app: AppHandle,
+    state: State<'_, AppState>,
+    new_hotkey: String,
+) -> Result<(), String> {
+    let mut hotkey = state.active_hotkey.lock().unwrap();
+    *hotkey = new_hotkey.clone();
+    // crate::hotkey::unregister_all(&app);
+    // crate::hotkey::register_hotkey(&app, &new_hotkey);
+    Ok(())
+}
+
+// ─── Tauri v2 Export / Import Profiles ─────────────────────────────────────
+
+#[tauri::command]
+pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), String> {
+    let json_string = serde_json::to_string_pretty(&profile)
+        .map_err(|e| format!("Failed to serialize profile: {}", e))?;
+
+    let result = app.dialog()
+        .file()
+        .set_file_name(&format!("{}.json", profile.name))
+        .set_title("Export Profile")
+        .add_filter("JSON Files", &["json"])
+        .blocking_save_file();
+
+    if let Some(path) = result {
+        let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
+        std::fs::write(&path_buf, json_string)
+            .map_err(|e| format!("Failed to write: {}", e))?;
+        Ok(())
+    } else {
+        app.dialog()
+            .message("Profile export was cancelled by the user.")
+            .title("Export Cancelled")
+            .blocking_show();
+        Err("Export cancelled".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
+    let result = app.dialog()
+        .file()
+        .set_title("Import Profile")
+        .add_filter("JSON Files", &["json"])
+        .blocking_pick_file();
+
+    if let Some(path) = result {
+        let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
+        let json_string = std::fs::read_to_string(&path_buf)
+            .map_err(|e| format!("Failed to read: {}", e))?;
+        let profile: Profile = serde_json::from_str(&json_string)
+            .map_err(|e| format!("Failed to deserialize: {}", e))?;
+        Ok(profile)
+    } else {
+        app.dialog()
+            .message("Profile import was cancelled by the user.")
+            .title("Import Cancelled")
+            .blocking_show();
+        Err("Import cancelled".to_string())
+    }
 }

@@ -11,6 +11,14 @@
     box-sizing: border-box;
 }
 
+#root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -26,6 +34,11 @@ body {
     -moz-osx-font-smoothing: grayscale;
     /* Inter's optical size & ligature features */
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+html, body, #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  -webkit-backface-visibility: hidden;
 }
 
 /* ── Thin dark-mode scrollbar ───────────────────────────────────────────────── */
@@ -46,13 +59,18 @@ body {
 
 /* ── Action Ring overlay window ─────────────────────────────────────────────── */
 /* Transparent so the OS compositor shows through on Windows & macOS. */
-html.ring-window,
-html.ring-window body,
-html.ring-window #root {
-    background: transparent !important;
-    overflow: hidden;
+html.action-ring-window,
+html.action-ring-window body,
+html.action-ring-window #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden;
 }
 
+/* ลบขอบขาวที่อาจเกิดจากขอบของเมาส์หรือเงาหน้าต่างใน Mac */
+html.action-ring-window svg {
+  filter: drop-shadow(0 0 0 transparent);
+}
 /* ═══════════════════════════════════════════════════════════════════════════
    Keyframes
    ═══════════════════════════════════════════════════════════════════════════ */
