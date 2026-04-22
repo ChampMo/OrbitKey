@@ -38,7 +38,7 @@
         "backgroundColor": "#00000000",
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "visible": false,
+        "visibleOnAllWorkspaces": true,
         "center": false,
         "shadow": false,
         "focus": false,

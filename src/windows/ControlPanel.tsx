@@ -1,42 +1,24 @@
 /**
- * ControlPanel.tsx — Action Ring Settings Dashboard (Auto-Save Version)
+ * ControlPanel.tsx — Action Ring Settings Dashboard (Auto-Save + Clean Icons Version)
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  Zap,
-  Globe,
-  Code2,
-  Copy,
-  ClipboardPaste,
-  Camera,
   Settings,
-  Wifi,
-  Volume2,
-  Play,
-  Pause,
-  Monitor,
-  Terminal,
-  Folder,
-  Mail,
-  MessageSquare,
-  Cpu,
-  HardDrive,
-  LayoutGrid,
   MousePointer2,
-  Search,
-  Music,
-  Power,
   Plus,
   X,
   Upload,
   Trash2,
-  ChevronRight,
   ChevronLeft,
+  ChevronRight,
+  Zap,
 } from "lucide-react";
 
+// นำเข้าไฟล์ Settings และ IconMap ที่แยกไว้
 import SettingsPanel from "./SettingsPanel";
+import { ICON_MAP, ICON_LIST } from "./IconMap";
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 type ActionTypeValue = "shortcut" | "launch" | "script" | "folder";
@@ -60,7 +42,7 @@ interface ApiProfile {
   slices: ApiSlice[];
 }
 
-// ─── 2. Constants & Maps ──────────────────────────────────────────────────
+// ─── 2. Constants ─────────────────────────────────────────────────────────
 const ACCENT_PALETTE = [
   "#4285f4",
   "#0ea5e9",
@@ -71,33 +53,6 @@ const ACCENT_PALETTE = [
   "#ec4899",
   "#84cc16",
 ];
-
-const ICON_MAP: Record<string, any> = {
-  Zap,
-  Globe,
-  Code2,
-  Copy,
-  ClipboardPaste,
-  Camera,
-  Settings,
-  Wifi,
-  Volume2,
-  Play,
-  Pause,
-  Monitor,
-  Terminal,
-  Folder,
-  Mail,
-  MessageSquare,
-  Cpu,
-  HardDrive,
-  LayoutGrid,
-  MousePointer2,
-  Search,
-  Music,
-  Power,
-};
-const ICON_LIST = Object.keys(ICON_MAP);
 
 const ACTION_TYPE_LABELS: Record<ActionTypeValue, string> = {
   shortcut: "Shortcut",
@@ -120,8 +75,8 @@ const ACTION_DATA_PLACEHOLDERS: Record<ActionTypeValue, string> = {
   folder: "Items inside this folder appear in the outer ring.",
 };
 
-const R_MAIN = 140;
-const R_OUTER = 240;
+const R_MAIN = 120;
+const R_OUTER = 220;
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -167,7 +122,7 @@ function SliceEditor({
     [slice, onChange],
   );
 
-  const CurrentIcon = ICON_MAP[slice.icon || "Zap"] || ICON_MAP.Zap;
+  const CurrentIcon = ICON_MAP[slice.icon || "Zap"] || ICON_MAP.Zap || Zap;
 
   const handleBrowse = async () => {
     try {
@@ -216,7 +171,6 @@ function SliceEditor({
           Edit Configuration
         </h3>
         <div className="flex items-center gap-2">
-          {/* เอาปุ่ม Cancel ออกไปแล้วตามรูปกากบาท */}
           <button
             onClick={onDelete}
             className="text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/20 transition-colors"
@@ -251,25 +205,28 @@ function SliceEditor({
           >
             <CurrentIcon size={20} strokeWidth={2.5} />
           </button>
+
           {showIconPicker && (
-            <div className="absolute top-[80px] right-[60px] z-50 p-3 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl w-[260px]">
-              <div className="grid grid-cols-5 gap-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
-                {ICON_LIST.map((iconName) => (
-                  <button
-                    key={iconName}
-                    type="button"
-                    onClick={() => {
-                      set("icon", iconName);
-                      setShowIconPicker(false);
-                    }}
-                    className={`p-2 flex items-center justify-center rounded-lg transition-colors ${slice.icon === iconName ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/50" : "border border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
-                  >
-                    {React.createElement(ICON_MAP[iconName], {
-                      size: 18,
-                      strokeWidth: 2.5,
-                    })}
-                  </button>
-                ))}
+            <div className="absolute top-[80px] right-[60px] z-50 p-4 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl w-[320px]">
+              <div className="grid grid-cols-6 gap-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                {ICON_LIST.map((iconName) => {
+                  const IconComp = ICON_MAP[iconName];
+                  if (!IconComp) return null;
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      title={iconName}
+                      onClick={() => {
+                        set("icon", iconName);
+                        setShowIconPicker(false);
+                      }}
+                      className={`p-2 flex items-center justify-center rounded-lg transition-colors ${slice.icon === iconName ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/50" : "border border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+                    >
+                      <IconComp size={18} strokeWidth={2} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -327,7 +284,7 @@ function SliceEditor({
             return (
               <button
                 key={t}
-                disabled={isDisabled}
+                disabled={!!isDisabled}
                 onClick={() => {
                   onChange({
                     ...slice,
@@ -444,13 +401,12 @@ export default function ControlPanel() {
   );
 
   // --- Auto-Save System (Debounced) ---
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autoSaveToBackend = useCallback((newProfiles: ApiProfile[]) => {
     setProfiles(newProfiles);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-    // หน่วงเวลา 400ms เพื่อไม่ให้เขียนลงดิสก์รัวเกินไปตอนพิมพ์ข้อความ
     saveTimeoutRef.current = setTimeout(() => {
       invoke("save_profiles", { profiles: newProfiles }).catch(console.error);
     }, 400);
@@ -838,10 +794,12 @@ export default function ControlPanel() {
     setLiveOrder(null);
   };
 
+  // ** อัปเดตใหม่: แก้ไขให้เวลาส่งออก (Export) จะปลดสถานะ isDefault ออกเสมอ **
   async function handleExport() {
     if (!activeProfile) return;
     try {
-      await invoke("export_profile", { profile: activeProfile });
+      const exportProfile = { ...activeProfile, isDefault: false };
+      await invoke("export_profile", { profile: exportProfile });
     } catch (e) {
       console.error(e);
     }
@@ -913,7 +871,7 @@ export default function ControlPanel() {
         elements.push(
           <div
             key={`${slice.id}-floating-arrow`}
-            className={`absolute pointer-events-none transition-all duration-300 w-8 h-8 flex items-center justify-center rounded-full duration-300
+            className={`absolute pointer-events-none transition-all duration-300 w-8 h-8 flex items-center justify-center rounded-full
                    ${isActiveFolder ? " text-blue-500" : " text-zinc-400"}
                 `}
             style={{
@@ -939,7 +897,7 @@ export default function ControlPanel() {
           onPointerDown={(e) => handlePointerDown(e, slice.id)}
           onPointerMove={handlePointerMove}
           onPointerUp={(e) => handlePointerUp(e, slice)}
-          className={`absolute w-[64px] h-[64px] rounded-full flex items-center justify-center shadow-xl transition-all duration-300 z-10 touch-none
+          className={`absolute w-[55px] h-[55px] rounded-full flex items-center justify-center shadow-xl transition-all duration-300 z-10 touch-none
             ${isBeingDragged ? "opacity-0 pointer-events-none" : ""}
             ${isSelected && !isBeingDragged ? "ring-4 ring-indigo-500/50 scale-110" : !isBeingDragged && "hover:scale-110"}
             ${isBeingHovered && slice.actionType === "folder" ? "ring-4 ring-rose-500 scale-125" : ""}
@@ -1170,25 +1128,30 @@ export default function ControlPanel() {
             {!activeFolderId && (
               <button
                 onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteProfile();
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
+              e.stopPropagation();
+              handleExport();
+            }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-sm font-medium border border-zinc-700/50 transition-all shadow-lg backdrop-blur-sm z-20 pointer-events-auto"
               >
-                <Trash2 size={16} /> Delete Profile
+                <Upload size={16} /> Export Profile
               </button>
             )}
           </div>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleExport();
-            }}
-            className="absolute bottom-8 left-8 flex items-center gap-2 px-4 py-2.5 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-sm font-medium border border-zinc-700/50 transition-all shadow-lg backdrop-blur-sm z-20 pointer-events-auto"
-          >
-            <Upload size={16} /> Export Profile
-          </button>
+          
+          {!activeFolderId && (
+            <button
+              onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteProfile();
+                  }}
+              className="absolute bottom-8 left-8 flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
+            >
+              <Trash2 size={16} /> Delete Profile
+            </button>
+            )}
+            
+
 
           <div
             ref={canvasRef}
@@ -1196,12 +1159,12 @@ export default function ControlPanel() {
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] z-0 flex items-center justify-center"
+              className="absolute left-1/2 top-1/2 w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] z-0 flex items-center justify-center"
               style={{ transform: "translate(-50%, -50%)" }}
             >
               <X
                 className="text-zinc-600 opacity-50"
-                size={28}
+                size={25}
                 strokeWidth={3}
               />
             </div>

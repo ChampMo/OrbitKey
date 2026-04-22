@@ -182,3 +182,44 @@ fn mk_folder(id: &str, label: &str, icon: &str, color: &str, children: Vec<Actio
         children: Some(children), // ใส่ลูกๆ ลงไปตรงนี้
     }
 }
+use crate::state::AppSettings;
+
+// ─── Settings Persistence ──────────────────────────────────────────────────────
+
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app-data directory: {e}"))?;
+
+    fs::create_dir_all(&dir).map_err(|e| {
+        format!("Cannot create app-data directory at '{}': {e}", dir.display())
+    })?;
+
+    Ok(dir.join("settings.json"))
+}
+
+pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
+    let path = settings_path(app)?;
+
+    if !path.exists() {
+        let defaults = AppSettings::default();
+        write_settings(app, &defaults)?;
+        return Ok(defaults);
+    }
+
+    let json = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+
+    serde_json::from_str::<AppSettings>(&json)
+        .map_err(|e| format!("'{}' contains invalid JSON: {e}", path.display()))
+}
+
+pub fn write_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
+    let path = settings_path(app)?;
+    let json = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Failed to serialise settings: {e}"))?;
+
+    fs::write(&path, json).map_err(|e| format!("Failed to write '{}': {e}", path.display()))?;
+    Ok(())
+}

@@ -1,10 +1,9 @@
-//! Shared application state — data models and runtime settings.
+// src-tauri/src/state.rs
 
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 // ── Action types ──────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionType {
@@ -15,7 +14,6 @@ pub enum ActionType {
 }
 
 // ── Persistence types ────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionSlice {
@@ -27,7 +25,6 @@ pub struct ActionSlice {
     pub action_data: Option<String>,
     #[serde(default)]
     pub script_args: Vec<String>,
-    /// ใช้ Option เพื่อให้ Folder มีลูกได้ หรือโหนดปกติเป็น None
     #[serde(default)]
     pub children: Option<Vec<ActionSlice>>,
 }
@@ -42,20 +39,45 @@ pub struct Profile {
     pub slices: Vec<ActionSlice>,
 }
 
-// ── Runtime state (not persisted) ────────────────────────────────────────────
+// 🔥 [เพิ่มใหม่: สำหรับเก็บการตั้งค่าแอป] 🔥
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub global_hotkey: String,
+    pub start_with_os: bool,
+    pub ring_scale: i32,
+    pub close_after_exec: bool,
+    pub trigger_mode: String,
+    pub anim_speed: String,
+    pub deadzone: i32,
+    pub center_action: String,
+}
 
-/// Managed Tauri state
+// ตั้งค่าเริ่มต้น (Default) เผื่อว่าแอปเปิดครั้งแรกแล้วยังไม่เคยตั้งค่า
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            global_hotkey: "Control+Shift+Q".to_string(),
+            start_with_os: false,
+            ring_scale: 100,
+            close_after_exec: true,
+            trigger_mode: "click".to_string(),
+            anim_speed: "spring".to_string(),
+            deadzone: 30,
+            center_action: "close".to_string(),
+        }
+    }
+}
+
+// ── Runtime state ────────────────────────────────────────────
 pub struct AppState {
-    /// Hotkey หลัก (เช่น "Control+Shift+Q" ตามที่เราแก้บน Mac)
     pub active_hotkey: Mutex<String>,
-    /// เก็บ ID ของโปรไฟล์ที่กำลังใช้งานอยู่ เพื่อให้ Frontend ไฮไลท์ถูก
     pub active_profile_id: Mutex<String>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         AppState {
-            // ปรับ Default ให้ตรงกับปุ่มลัดที่เราแก้ไปบน Mac
             active_hotkey: Mutex::new("Control+Shift+Q".to_string()),
             active_profile_id: Mutex::new("global".to_string()),
         }

@@ -31,6 +31,7 @@ enigo                       = "0.2"
 # Tauri v2 embeds tokio, but we need to reference it directly for these APIs.
 tokio                       = { version = "1", features = ["rt", "time"] }
 tauri-plugin-dialog = "2.7.0"
+objc = "0.2.7"
 
 [features]
 # This feature is used for production builds or when `devUrl` is not set.

@@ -9,58 +9,68 @@ const RING_WINDOW_LABEL: &str = "action-ring";
 const RING_WINDOW_SIZE: f64 = 800.0;
 
 /// Show the Action Ring window centered on the current mouse cursor.
-pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let ring_window = app
-        .get_webview_window(RING_WINDOW_LABEL)
-        .ok_or("action-ring window not found")?;
+// เพิ่ม Struct นี้ไว้ด้านบนของฟังก์ชัน
+// อย่าลืมเอา Struct นี้ไว้ด้านบนของฟังก์ชันเหมือนเดิมนะคับ
+// ใส่ไว้ด้านบนสุดของฟังก์ชันเหมือนเดิมครับ
+#[derive(serde::Serialize, Clone)]
+struct RingShowPayload {
+    local_x: f64,
+    local_y: f64,
+}
 
-    // ปรับแต่ง Window พื้นฐาน
+pub fn show_action_ring(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let ring_window = app.get_webview_window("action-ring").ok_or("window not found")?;
+
     #[cfg(target_os = "macos")]
     {
         let _ = ring_window.set_shadow(false);
+        use objc::{msg_send, sel, sel_impl};
+        let ns_window = ring_window.ns_window().unwrap() as *mut objc::runtime::Object;
+        unsafe {
+            // (1<<0) AllSpaces | (1<<4) Stationary | (1<<6) IgnoresCycle | (1<<8) FullScreenAux
+            let behavior: u64 = (1 << 0) | (1 << 4) | (1 << 6) | (1 << 8);
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+            let style_mask: u64 = msg_send![ns_window, styleMask];
+            let _: () = msg_send![ns_window, setStyleMask: style_mask | 128]; // Non-activating
+            
+            let level: i64 = 2147483647; // Max Level
+            let _: () = msg_send![ns_window, setLevel: level];
+        }
     }
     let _ = ring_window.set_decorations(false);
 
-    // **แก้ไขจุดที่ 2:** ดึงตำแหน่งเม้าส์ปัจจุบัน
-    // หมายเหตุ: cursor_position() ของ Tauri ให้พิกัดแบบ Physical มาอยู่แล้ว
+    // 1. ดึงตำแหน่งเมาส์และตั้งศูนย์กลาง
     let cursor_pos = ring_window.cursor_position()?;
-
-    // คำนวณหาจุดกึ่งกลางหน้าต่างโดยอิงจาก Scale Factor (DPI) ของจอ
     let scale = ring_window.scale_factor().unwrap_or(1.0);
-    let physical_half = (RING_WINDOW_SIZE * scale) / 2.0;
+    let physical_half = (800.0 * scale) / 2.0;
 
-    // คำนวณพิกัด Top-Left ใหม่ เพื่อให้จุด Center (400, 400) ตรงกับเม้าส์
-    let x = (cursor_pos.x - physical_half) as i32;
-    let y = (cursor_pos.y - physical_half) as i32;
+    let target_x = (cursor_pos.x - physical_half) as i32;
+    let target_y = (cursor_pos.y - physical_half) as i32;
 
-    // สั่งย้ายหน้าต่างไปที่ตำแหน่งเมาส์ "ก่อน" ที่จะโชว์
-    ring_window.set_position(PhysicalPosition::new(x, y))?;
-
-    // บังคับขนาดให้ชัวร์ว่าเป็น 800x800 (ป้องกันอาการจอล้น)
-    let _ = ring_window.set_size(tauri::Size::Logical(LogicalSize::new(
-        RING_WINDOW_SIZE,
-        RING_WINDOW_SIZE,
-    )));
-
-    // โชว์และดึง Focus
-    ring_window.show()?;
+    let _ = ring_window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
+    let _ = ring_window.show();
     ring_window.set_focus()?;
 
-    // ส่ง Event ไปบอก React ให้เริ่มวาดวงแหวน
-    ring_window.emit("ring:show", ())?;
+    
+    let mut local_x = 400.0;
+    let mut local_y = 400.0;
+
+    if let Ok(actual_pos) = ring_window.outer_position() {
+        local_x = (cursor_pos.x as f64 - actual_pos.x as f64) / scale;
+        local_y = (cursor_pos.y as f64 - actual_pos.y as f64) / scale;
+    }
+
+    ring_window.emit("ring:show", RingShowPayload { local_x, local_y })?;
 
     Ok(())
 }
 
-/// Hide the Action Ring window.
-pub fn hide_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let ring_window = app
-        .get_webview_window(RING_WINDOW_LABEL)
-        .ok_or("action-ring window not found")?;
+pub fn hide_action_ring(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let ring_window = app.get_webview_window("action-ring").ok_or("window not found")?;
+    let _ = ring_window.emit("ring:hide", ());
+    let _ = ring_window.hide();
 
-    ring_window.emit("ring:hide", ())?;
-    ring_window.hide()?;
 
-    println!("[action-ring] Ring hidden.");
+
     Ok(())
 }

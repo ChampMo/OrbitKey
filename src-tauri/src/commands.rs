@@ -12,7 +12,7 @@ pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn execute_action(app: AppHandle, action: ActionSlice) -> Result<(), String> {
-    window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
+    // window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
 
     let result: Result<(), String> = match action.action_type {
         ActionType::Shortcut => {
@@ -71,16 +71,32 @@ pub fn get_active_hotkey(state: State<'_, AppState>) -> Result<String, String> {
     Ok(hotkey)
 }
 
+use crate::state::AppSettings;
+
 #[tauri::command]
-pub fn set_hotkey(
-    _app: AppHandle,
+pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
+    storage::load_settings(&app)
+}
+
+#[tauri::command]
+pub fn save_settings(
+    app: AppHandle,
     state: State<'_, AppState>,
-    new_hotkey: String,
+    settings: AppSettings,
 ) -> Result<(), String> {
-    let mut hotkey = state.active_hotkey.lock().unwrap();
-    *hotkey = new_hotkey.clone();
-    // crate::hotkey::unregister_all(&app);
-    // crate::hotkey::register_hotkey(&app, &new_hotkey);
+    
+    // 1. บันทึกลงไฟล์ settings.json
+    storage::write_settings(&app, &settings)?;
+
+    // 2. เช็คว่า Hotkey เปลี่ยนหรือเปล่า ถ้าเปลี่ยนให้สั่ง Unregister ของเก่าแล้วลงทะเบียนใหม่ทันที
+    let mut current_hotkey = state.active_hotkey.lock().unwrap();
+    if *current_hotkey != settings.global_hotkey {
+        let _ = crate::hotkey::update_hotkey(&app, &current_hotkey, &settings.global_hotkey);
+        *current_hotkey = settings.global_hotkey.clone();
+    }
+
+    // (ในอนาคตถ้ามีปลั๊กอิน autostart เราจะเอามาเชื่อมที่นี่ครับ)
+    
     Ok(())
 }
 
@@ -133,5 +149,16 @@ pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
             .title("Import Cancelled")
             .blocking_show();
         Err("Import cancelled".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn open_accessibility_settings() {
+    #[cfg(target_os = "macos")]
+    {
+        // คำสั่ง Native ของ Mac สำหรับเปิดหน้า การช่วยการเข้าถึง (Accessibility) โดยเฉพาะ
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn();
     }
 }

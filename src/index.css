@@ -210,6 +210,21 @@ html.action-ring-window svg {
     }
 }
 
+/* จังหวะการเด้งแบบ Pro (Back Out) */
+.spring-child {
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ถ้าอยากให้ค่อยๆ โผล่ทีละนิด (Stagger) ก็ใช้ตัวนี้ช่วย */
+.item-appear {
+  animation: item-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes item-pop {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Animation utility classes
    ═══════════════════════════════════════════════════════════════════════════ */
