@@ -14,16 +14,28 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  Lightbulb,
 } from "lucide-react";
 
 // นำเข้าไฟล์ Settings และ IconMap ที่แยกไว้
 import SettingsPanel from "./SettingsPanel";
+import ProTipModal from "./components/ProTipModal";
+import SliceEditor from "./components/SliceEditor";
 import { ICON_MAP, ICON_LIST } from "./IconMap";
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
-type ActionTypeValue = "shortcut" | "launch" | "script" | "folder";
+export type ActionTypeValue = 
+  | "shortcut" 
+  | "launch" 
+  | "script" 
+  | "folder"
+  | "text_snippet"
+  | "media"
+  | "system"
+  | "switch_profile"
+  | "multi_action";
 
-interface ApiSlice {
+export interface ApiSlice {
   id: string;
   label: string;
   icon?: string | null;
@@ -34,7 +46,7 @@ interface ApiSlice {
   children?: ApiSlice[] | null;
 }
 
-interface ApiProfile {
+export interface ApiProfile {
   id: string;
   name: string;
   appMatcher?: string | null;
@@ -43,37 +55,15 @@ interface ApiProfile {
 }
 
 // ─── 2. Constants ─────────────────────────────────────────────────────────
-const ACCENT_PALETTE = [
-  "#4285f4",
-  "#0ea5e9",
-  "#10b981",
-  "#f59e0b",
-  "#f43f5e",
-  "#8b5cf6",
-  "#ec4899",
-  "#84cc16",
+
+export const ACCENT_PALETTE = [
+  // --- Vibrant Colors ---
+  "#4285f4", "#0ea5e9", "#10b981", "#f59e0b",
+  "#f43f5e", "#8b5cf6", "#ec4899", "#84cc16",
+  // --- Pastel Colors ---
+  "#93c5fd", "#7dd3fc", "#6ee7b7", "#fcd34d",
+  "#fda4af", "#c4b5fd", "#fbcfe8", "#bef264",
 ];
-
-const ACTION_TYPE_LABELS: Record<ActionTypeValue, string> = {
-  shortcut: "Shortcut",
-  launch: "Launch",
-  script: "Script",
-  folder: "Folder",
-};
-
-const ACTION_TYPE_COLORS: Record<ActionTypeValue, string> = {
-  shortcut: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
-  launch: "bg-sky-500/10 text-sky-400 border-sky-500/30",
-  script: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  folder: "bg-rose-500/10 text-rose-400 border-rose-500/30",
-};
-
-const ACTION_DATA_PLACEHOLDERS: Record<ActionTypeValue, string> = {
-  shortcut: "e.g. ctrl+c or alt+f4",
-  launch: "e.g. https://google.com or code",
-  script: "e.g. C:\\scripts\\run.bat",
-  folder: "Items inside this folder appear in the outer ring.",
-};
 
 const R_MAIN = 120;
 const R_OUTER = 220;
@@ -95,268 +85,12 @@ function emptySlice(): ApiSlice {
   };
 }
 
-// ─── 4. Real-time Slice Editor Component ──────────────────────────────────
-function SliceEditor({
-  slice,
-  onChange,
-  onDelete,
-  isChildItem,
-}: {
-  slice: ApiSlice;
-  onChange: (updated: ApiSlice) => void;
-  onDelete: () => void;
-  isChildItem: boolean;
-}) {
-  const labelRef = useRef<HTMLInputElement>(null);
-  const actionInputRef = useRef<HTMLInputElement>(null);
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-
-  useEffect(() => {
-    if (isRecording) actionInputRef.current?.focus();
-  }, [isRecording]);
-
-  const set = useCallback(
-    <K extends keyof ApiSlice>(key: K, value: ApiSlice[K]) =>
-      onChange({ ...slice, [key]: value }),
-    [slice, onChange],
-  );
-
-  const CurrentIcon = ICON_MAP[slice.icon || "Zap"] || ICON_MAP.Zap || Zap;
-
-  const handleBrowse = async () => {
-    try {
-      const selectedPath = await open({ multiple: false, directory: false });
-      if (selectedPath) set("actionData", selectedPath as string);
-    } catch (err) {
-      console.error("Browse error:", err);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isRecording) return;
-    e.preventDefault();
-    if (e.key === "Escape") {
-      setIsRecording(false);
-      return;
-    }
-    const keys: string[] = [];
-    if (e.ctrlKey) keys.push("ctrl");
-    if (e.altKey) keys.push("alt");
-    if (e.shiftKey) keys.push("shift");
-    if (e.metaKey) keys.push("cmd");
-
-    if (!["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
-      let keyName = e.key.toLowerCase();
-      if (keyName === " ") keyName = "space";
-      keys.push(keyName);
-      set("actionData", keys.join("+"));
-      setIsRecording(false);
-    }
-  };
-
-  const availableTypes: ActionTypeValue[] = isChildItem
-    ? ["shortcut", "launch", "script"]
-    : ["shortcut", "launch", "script", "folder"];
-
-  const hasChildren =
-    slice.actionType === "folder" &&
-    slice.children &&
-    slice.children.length > 0;
-
-  return (
-    <div className="h-full flex flex-col bg-[#0c0c0e] p-8 space-y-6">
-      <div className="flex items-center justify-between border-b border-white/5 pb-4">
-        <h3 className="text-sm font-bold text-indigo-300 tracking-wider uppercase">
-          Edit Configuration
-        </h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onDelete}
-            className="text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/20 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[1fr_auto_auto] gap-5 relative">
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Label
-          </label>
-          <input
-            ref={labelRef}
-            type="text"
-            value={slice.label}
-            onChange={(e) => set("label", e.target.value)}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Icon
-          </label>
-          <button
-            type="button"
-            onClick={() => setShowIconPicker(!showIconPicker)}
-            className={`w-14 h-[42px] bg-zinc-950 border rounded-xl flex items-center justify-center transition-all ${showIconPicker ? "border-indigo-500 text-indigo-400" : "border-zinc-800 text-zinc-300 hover:border-zinc-600"}`}
-          >
-            <CurrentIcon size={20} strokeWidth={2.5} />
-          </button>
-
-          {showIconPicker && (
-            <div className="absolute top-[80px] right-[60px] z-50 p-4 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl w-[320px]">
-              <div className="grid grid-cols-6 gap-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-                {ICON_LIST.map((iconName) => {
-                  const IconComp = ICON_MAP[iconName];
-                  if (!IconComp) return null;
-                  return (
-                    <button
-                      key={iconName}
-                      type="button"
-                      title={iconName}
-                      onClick={() => {
-                        set("icon", iconName);
-                        setShowIconPicker(false);
-                      }}
-                      className={`p-2 flex items-center justify-center rounded-lg transition-colors ${slice.icon === iconName ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/50" : "border border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
-                    >
-                      <IconComp size={18} strokeWidth={2} />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Color
-          </label>
-          <div className="flex items-center gap-3">
-            <div className="relative w-[42px] h-[42px] shrink-0">
-              <input
-                type="color"
-                value={slice.color || "#6366f1"}
-                onChange={(e) => set("color", e.target.value)}
-                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-              />
-              <div
-                className="w-full h-full rounded-full border-2 border-zinc-700 transition-transform hover:scale-105"
-                style={{
-                  backgroundColor: slice.color || "#6366f1",
-                  boxShadow: `0 0 15px ${slice.color || "#6366f1"}40`,
-                }}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 max-w-[80px]">
-              {ACCENT_PALETTE.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => set("color", c)}
-                  className={`w-4 h-4 rounded-full border transition-all hover:scale-125 ${slice.color === c ? "border-white" : "border-transparent"}`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-end">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Action Type
-          </label>
-          {hasChildren && (
-            <span className="text-[10px] text-rose-400">
-              Clear items inside to change type
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {availableTypes.map((t) => {
-            const isDisabled = hasChildren && t !== "folder";
-            return (
-              <button
-                key={t}
-                disabled={!!isDisabled}
-                onClick={() => {
-                  onChange({
-                    ...slice,
-                    actionType: t,
-                    actionData: t === "folder" ? "" : slice.actionData,
-                    children: t === "folder" ? slice.children || [] : null,
-                  });
-                }}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all duration-200
-                  ${slice.actionType === t ? ACTION_TYPE_COLORS[t] + " shadow-md" : "border-zinc-800 bg-zinc-950 text-zinc-500"}
-                  ${isDisabled ? "opacity-30 cursor-not-allowed" : "hover:text-zinc-300 hover:bg-zinc-900"}
-                `}
-              >
-                {ACTION_TYPE_LABELS[t]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {slice.actionType !== "folder" && (
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Command / Path
-          </label>
-          <div className="flex gap-2">
-            <input
-              ref={actionInputRef}
-              type="text"
-              value={
-                isRecording
-                  ? "Listening... (Press your keys)"
-                  : slice.actionData || ""
-              }
-              readOnly={isRecording}
-              onChange={(e) => set("actionData", e.target.value)}
-              placeholder={ACTION_DATA_PLACEHOLDERS[slice.actionType]}
-              className={`w-full bg-zinc-950 border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none transition-all ${isRecording ? "border-red-500/50 text-red-400 ring-1 ring-red-500/30 animate-pulse" : "border-zinc-800 text-white placeholder-zinc-700 focus:border-indigo-500"}`}
-              onKeyDown={handleKeyDown}
-            />
-            {slice.actionType === "shortcut" && (
-              <button
-                onClick={() => setIsRecording(!isRecording)}
-                className={`px-4 py-2 rounded-xl text-xs font-medium transition-all shrink-0 ${isRecording ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700"}`}
-              >
-                {isRecording ? "Cancel" : "⏺ Record"}
-              </button>
-            )}
-            {(slice.actionType === "launch" ||
-              slice.actionType === "script") && (
-              <button
-                onClick={handleBrowse}
-                className="px-4 py-2 bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 rounded-xl text-xs font-medium transition-all shrink-0"
-              >
-                📂 Browse
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1"></div>
-    </div>
-  );
-}
-
 // ─── 5. Main Control Panel Component ──────────────────────────────────────
 export default function ControlPanel() {
   const [currentView, setCurrentView] = useState<"profiles" | "settings">(
     "profiles",
   );
-
+  const [showProTip, setShowProTip] = useState(false);
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -378,6 +112,16 @@ export default function ControlPanel() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const lastHoveredId = useRef<string | null>(null);
   const [liveOrder, setLiveOrder] = useState<string[] | null>(null);
+
+  // 💥 ─── ระบบลากวาง Profile Tabs ─── 💥
+  const [draggedProfileId, setDraggedProfileId] = useState<string | null>(null);
+  const [liveProfiles, setLiveProfiles] = useState<ApiProfile[] | null>(null);
+  const [dragProfilePos, setDragProfilePos] = useState<{ x: number; y: number } | null>(null);
+  const [profileDragOffset, setProfileDragOffset] = useState({ x: 0, y: 0 });
+  const [profileDragWidth, setProfileDragWidth] = useState(120);
+
+  const liveProfilesRef = useRef<ApiProfile[] | null>(null);
+  useEffect(() => { liveProfilesRef.current = liveProfiles; }, [liveProfiles]);
 
   const activeProfile = profiles[activeProfileIndex];
   const rootSlices = activeProfile?.slices ?? [];
@@ -424,6 +168,160 @@ export default function ControlPanel() {
       });
   }, []);
 
+  // 💥 ─── จัดการ Pointer Drag & Drop สำหรับ Profile Tabs ─── 💥
+  const handleProfilePointerDown = (e: React.PointerEvent, profileId: string) => {
+    if (e.button !== 0) return;
+    
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    setProfileDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setProfileDragWidth(rect.width);
+
+    setDraggedProfileId(profileId);
+    setLiveProfiles([...profiles]);
+    setDragProfilePos({ x: e.clientX, y: e.clientY });
+  };
+
+  useEffect(() => {
+    if (!draggedProfileId) { document.body.style.cursor = ""; return; }
+    document.body.style.cursor = "grabbing";
+
+    const onMove = (e: PointerEvent) => {
+      setDragProfilePos({ x: e.clientX, y: e.clientY });
+      
+      // หาเป้าหมายที่ถูกลากทับ
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const targetBtn = el?.closest("[data-profile-id]");
+      if (targetBtn) {
+        const targetId = targetBtn.getAttribute("data-profile-id");
+        if (targetId && targetId !== draggedProfileId) {
+          setLiveProfiles(prev => {
+            if (!prev) return prev;
+            const next = [...prev];
+            const from = next.findIndex(p => p.id === draggedProfileId);
+            const to = next.findIndex(p => p.id === targetId);
+            if (from !== -1 && to !== -1) {
+              const [moved] = next.splice(from, 1);
+              next.splice(to, 0, moved);
+            }
+            return next;
+          });
+        }
+      }
+    };
+
+    const onUp = () => {
+      if (liveProfilesRef.current) {
+        const newProfiles = [...liveProfilesRef.current];
+        const currentActiveId = profiles[activeProfileIndex]?.id;
+        
+        autoSaveToBackend(newProfiles); // เซฟตำแหน่งใหม่ลงระบบ
+        
+        // 💥 อัปเดต Index ปัจจุบันให้ชี้ไปที่ Profile ตัวเดิมเสมอ แม้มันจะถูกย้ายตำแหน่งไปแล้ว
+        if (currentActiveId) {
+          const newActiveIdx = newProfiles.findIndex(p => p.id === currentActiveId);
+          if (newActiveIdx !== -1 && newActiveIdx !== activeProfileIndex) {
+            setActiveProfileIndex(newActiveIdx);
+          }
+        }
+      }
+      setDraggedProfileId(null);
+      setLiveProfiles(null);
+      setDragProfilePos(null);
+      document.body.style.cursor = "";
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.style.cursor = "";
+    };
+  }, [draggedProfileId, profiles, activeProfileIndex, autoSaveToBackend]);
+  // ────────────────────────────────────────────────────────
+
+  // 💥 ─── ระบบ Copy / Paste / Delete สไลซ์แบบข้าม Profile ได้ ─── 💥
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" || 
+        target.tagName === "TEXTAREA" || 
+        target.tagName === "SELECT" ||
+        confirmModal !== null 
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (editingId) {
+          let found = rootSlices.find((s) => s.id === editingId);
+          if (!found && activeFolderId) {
+            found = rootSlices
+              .find((s) => s.id === activeFolderId)
+              ?.children?.find((s) => s.id === editingId);
+          }
+          if (found) {
+            localStorage.setItem("actionRing_copiedSlice", JSON.stringify(found));
+          }
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        const copiedStr = localStorage.getItem("actionRing_copiedSlice");
+        if (copiedStr) {
+          try {
+            const copiedData = JSON.parse(copiedStr) as ApiSlice;
+            const cloneSlice = (s: ApiSlice): ApiSlice => ({
+              ...s,
+              id: uid(),
+              children: s.children ? s.children.map(cloneSlice) : null
+            });
+            const newSlice = cloneSlice(copiedData);
+
+            const newProfiles = profiles.map((p, i) => {
+              if (i !== activeProfileIndex) return p;
+              let newSlices = [...p.slices];
+
+              if (activeFolderId) {
+                const folderIdx = newSlices.findIndex((s) => s.id === activeFolderId);
+                if (folderIdx !== -1) {
+                  newSlices[folderIdx] = {
+                    ...newSlices[folderIdx],
+                    children: [...(newSlices[folderIdx].children || []), newSlice],
+                  };
+                }
+              } else {
+                newSlices.push(newSlice);
+              }
+              return { ...p, slices: newSlices };
+            });
+
+            autoSaveToBackend(newProfiles);
+            setEditingId(newSlice.id);
+
+          } catch (err) {
+            console.error("Failed to paste slice:", err);
+          }
+        }
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (editingId) {
+          handleDeleteSlice();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, [editingId, activeFolderId, activeProfileIndex, profiles, rootSlices, autoSaveToBackend, confirmModal]); 
+  // ───────────────────────────────────────────────────────
+
   // --- State Handlers ---
   function handleAddProfile() {
     const initialSlice = emptySlice();
@@ -440,6 +338,9 @@ export default function ControlPanel() {
   }
 
   function handleProfileTabChange(idx: number) {
+    // ป้องกันการคลิกตอนกำลังลาก
+    if (draggedProfileId) return; 
+    
     setActiveProfileIndex(idx);
     setActiveFolderId(null);
     setEditingId(null);
@@ -578,8 +479,8 @@ export default function ControlPanel() {
     });
   }
 
-  // --- Fast Pointer Drag & Drop Logic ---
-  const handlePointerDown = (e: React.PointerEvent, id: string) => {
+  // --- Fast Pointer Drag & Drop Logic (Slices) ---
+  const handlePointerDown = (e: React.PointerEvent, _id: string) => {
     if (e.button !== 0) return;
     e.preventDefault();
     dragStartPos.current = { x: e.clientX, y: e.clientY };
@@ -794,7 +695,6 @@ export default function ControlPanel() {
     setLiveOrder(null);
   };
 
-  // ** อัปเดตใหม่: แก้ไขให้เวลาส่งออก (Export) จะปลดสถานะ isDefault ออกเสมอ **
   async function handleExport() {
     if (!activeProfile) return;
     try {
@@ -943,14 +843,43 @@ export default function ControlPanel() {
     return <SettingsPanel onBack={() => setCurrentView("profiles")} />;
   }
 
+  // ตัวแปรสำหรับแสดงผล Profile Array แบบ Real-time
+  const displayProfiles = liveProfiles || profiles;
+
   return (
     <div
-      className="absolute inset-0 w-screen w-full h-screen m-0 p-0 flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans"
+      className="absolute inset-0 w-full h-screen m-0 p-0 flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans"
       onClick={() => {
         setActiveFolderId(null);
         setEditingId(null);
       }}
     >
+      {/* 💥 Ghost Element สำหรับตอนลาก Profile 💥 */}
+      {draggedProfileId && dragProfilePos && (() => {
+        const p = displayProfiles.find(s => s.id === draggedProfileId);
+        if (!p) return null;
+        
+        const realIdx = profiles.findIndex(orig => orig.id === p.id);
+        const isActive = activeProfileIndex === realIdx;
+
+        return (
+          <div
+            className={`fixed pointer-events-none z-[9999] flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold shadow-[0_0_40px_rgba(0,0,0,0.5)] scale-105 transition-transform origin-top-left duration-300
+              ${isActive ? "bg-[#18181b] text-indigo-300 border border-indigo-500/50" : "bg-[#0c0c0e] text-zinc-200 border border-zinc-700/80"}
+            `}
+            style={{
+              left: dragProfilePos.x - profileDragOffset.x,
+              top: dragProfilePos.y - profileDragOffset.y,
+              width: profileDragWidth,
+              margin: 0
+            }}
+          >
+            {p.isDefault && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>}
+            {p.name}
+          </div>
+        );
+      })()}
+
       {confirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4">
@@ -981,6 +910,7 @@ export default function ControlPanel() {
         </div>
       )}
 
+      {/* Ghost Element สำหรับตอนลาก Slice วงแหวน */}
       {draggedId &&
         dragPos &&
         (() => {
@@ -1017,22 +947,36 @@ export default function ControlPanel() {
         className="shrink-0 flex items-center justify-between px-8 py-5 bg-[#0c0c0e] border-b border-zinc-800/60 z-10 shadow-sm"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 💥 ส่วนเรนเดอร์ Profile Tabs 💥 */}
         <div className="flex items-center gap-3">
-          {profiles.map((p, idx) => (
-            <button
-              key={p.id}
-              onClick={() => handleProfileTabChange(idx)}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeProfileIndex === idx ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"}`}
-            >
-              {p.isDefault && (
-                <div
-                  className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"
-                  title="Active Profile"
-                ></div>
-              )}
-              {p.name}
-            </button>
-          ))}
+          {displayProfiles.map((p) => {
+            // หา Index จริงๆ ใน Array profiles เพื่อให้ปุ่มอ้างอิงได้อย่างถูกต้อง
+            const realIdx = profiles.findIndex(orig => orig.id === p.id);
+            const isActive = activeProfileIndex === realIdx;
+
+            return (
+              <button
+                key={p.id}
+                data-profile-id={p.id}
+                onPointerDown={(e) => handleProfilePointerDown(e, p.id)}
+                onClick={() => handleProfileTabChange(realIdx)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ease-out touch-none cursor-grab active:cursor-grabbing
+                  ${draggedProfileId === p.id ? "opacity-0 scale-95" : "opacity-100 scale-100"}
+                  ${isActive && draggedProfileId !== p.id 
+                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" 
+                    : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"}
+                `}
+              >
+                {p.isDefault && (
+                  <div
+                    className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"
+                    title="Active Profile"
+                  ></div>
+                )}
+                {p.name}
+              </button>
+            );
+          })}
           <button
             onClick={handleAddProfile}
             className="w-10 h-10 flex items-center justify-center rounded-xl border border-dashed border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
@@ -1043,6 +987,13 @@ export default function ControlPanel() {
         </div>
 
         <div className="flex items-center gap-5">
+          <button 
+            onClick={() => setShowProTip(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-xl text-sm font-bold border border-yellow-500/20 transition-all shadow-sm"
+          >
+            <Lightbulb size={16} className="animate-pulse" />
+            Pro Tip
+          </button>
           <button
             onClick={handleImport}
             className="text-sm font-medium text-zinc-400 hover:text-white px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
@@ -1054,7 +1005,7 @@ export default function ControlPanel() {
 
           <button
             onClick={() => setCurrentView("settings")}
-            className="flex items-center gap-2 px-4 py-2.5 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
+            className="flex items-center px-1 py-2.5 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
           >
             <Settings size={22} />
           </button>
@@ -1142,12 +1093,13 @@ export default function ControlPanel() {
           {!activeFolderId && (
             <button
               onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteProfile();
-                  }}
-              className="absolute bottom-8 left-8 flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
+                e.stopPropagation();
+                handleDeleteProfile();
+              }}
+              className="absolute bottom-8 left-8 z-[999] flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm"
             >
-              <Trash2 size={16} /> Delete Profile
+              <Trash2 size={16} className="pointer-events-none" /> 
+              <span className="pointer-events-none">Delete Profile</span>
             </button>
             )}
             
@@ -1232,6 +1184,7 @@ export default function ControlPanel() {
               onChange={handleUpdateSlice}
               onDelete={handleDeleteSlice}
               isChildItem={isEditingChild}
+              profiles={profiles}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 p-8 text-center opacity-60">
@@ -1249,6 +1202,9 @@ export default function ControlPanel() {
           )}
         </div>
       </main>
+      {showProTip && (
+        <ProTipModal onClose={() => setShowProTip(false)} />
+      )}
     </div>
   );
 }

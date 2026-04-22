@@ -1,24 +1,27 @@
 /**
  * ActionRing.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Perfect Centering & Smart Hybrid Release Mode
+ * Perfect Centering & Smart Hybrid Release Mode + Temporary Profile Switch
  */
 
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import * as LucideIcons from "lucide-react";
 
 interface ApiSlice { id: string; label: string; icon?: string; color?: string; actionType: string; actionData?: string | null; scriptArgs?: string[]; children?: ApiSlice[] | null; }
-interface ApiProfile { id: string; slices: ApiSlice[]; isDefault: boolean; }
+interface ApiProfile { id: string; name: string; slices: ApiSlice[]; isDefault: boolean; }
 interface AppSettings { globalHotkey: string; startWithOS: boolean; ringScale: number; closeAfterExec: boolean; triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; }
 
 export default function ActionRing() {
+  // 💥 เพิ่ม State เก็บ Profile ทั้งหมด และ Profile ชั่วคราว
+  const [allProfiles, setAllProfiles] = useState<ApiProfile[]>([]);
+  const [tempProfileId, setTempProfileId] = useState<string | null>(null);
+  
   const [slices, setSlices] = useState<ApiSlice[]>([]);
   const [config, setConfig] = useState<AppSettings | null>(null);
   const [animKey, setAnimKey] = useState(0);
   
-  // 💥 แก้ปัญหาที่ 2: ล็อกศูนย์กลางที่ 400,400 ไปเลย ไม่ต้องคำนวณให้มั่ว!
   const [center, setCenter] = useState({ x: -1000, y: -1000 });
   const [isVisible, setIsVisible] = useState(false); 
 
@@ -30,8 +33,6 @@ export default function ActionRing() {
   const configRef = useRef<AppSettings | null>(null);
   const hoveredMainRef = useRef<string | null>(null);
   const hoveredChildRef = useRef<string | null>(null);
-  
-  // 💥 ตัวแปรเก็บเวลาตอนเรียกวงแหวน (แก้ปัญหาข้อ 3)
   const summonTimeRef = useRef<number>(0);
 
   useEffect(() => { slicesRef.current = slices; }, [slices]);
@@ -48,42 +49,16 @@ export default function ActionRing() {
   const NODE_SIZE_CHILD_HOV = 60 * scaleMult;
   const DEAD_ZONE = config?.deadzone || 30;
 
-  // ค้นหาส่วนที่คำนวณ animClass ใน ActionRing.tsx แล้ววางทับครับ
-
   let animClass = "";
-  let initialScale = "scale-100";
-
   switch (config?.animSpeed) {
-    case "instant":
-      // ⚡️ มาทันที: ไม่มี Animation โผล่ปุ๊บมาปั๊บ
-      animClass = "opacity-100 transition-none";
-      break;
-
-    case "fast":
-      // 🏎️ สายซิ่ง: Fade in สั้นๆ + ขยายจาก 90% มา 100% (ดูคมและไว)
-      animClass = isVisible 
-        ? "opacity-100 scale-100 transition-all duration-150 ease-out" 
-        : "opacity-0 scale-90 transition-none";
-      break;
-
-    case "smooth":
-      // 🌊 สายละมุน: Fade in ช้าๆ + Blur เล็กน้อย + ขยายจาก 70% (ดูหรูหรา)
-      animClass = isVisible 
-        ? "opacity-100 scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" 
-        : "opacity-0 scale-75 blur-md transition-none";
-      break;
-
-    case "spring":
-      // 🎾 สายเด้ง: ใช้ Keyframe ที่เราสร้างไว้ (เด้งดึ๋งแบบ Apple UI)
-      animClass = isVisible 
-        ? "animate-spring-custom" 
-        : "opacity-0 scale-50 transition-none";
-      break;
-
-    default:
-      animClass = isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95";
+    case "instant": animClass = "opacity-100 transition-none"; break;
+    case "fast": animClass = isVisible ? "opacity-100 scale-100 transition-all duration-150 ease-out" : "opacity-0 scale-90 transition-none"; break;
+    case "smooth": animClass = isVisible ? "opacity-100 scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" : "opacity-0 scale-75 blur-md transition-none"; break;
+    case "spring": animClass = isVisible ? "animate-spring-custom" : "opacity-0 scale-50 transition-none"; break;
+    default: animClass = isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95";
   }
 
+  // 💥 โหลดข้อมูลครั้งแรก ให้เก็บลง allProfiles ไว้
   const loadData = async () => {
     try {
       const [profiles, settings] = await Promise.all([
@@ -91,17 +66,28 @@ export default function ActionRing() {
         invoke<AppSettings>("get_settings").catch(() => null)
       ]);
       if (profiles && profiles.length > 0) {
-        const activeProfile = profiles.find((p) => p.isDefault) || profiles[0];
-        setSlices(activeProfile.slices);
+        setAllProfiles(profiles);
       }
       if (settings) setConfig(settings);
     } catch (err) { console.error(err); }
   };
 
+  // 💥 Effect คำนวณ Slices ที่ต้องแสดงผล (เช็คว่ามีโปรไฟล์ชั่วคราวไหม)
+  useEffect(() => {
+    if (allProfiles.length === 0) return;
+    
+    // ถ้ามี tempProfileId ให้ใช้อันนั้น ถ้าไม่มีให้ใช้อัน Default
+    const active = tempProfileId 
+      ? allProfiles.find(p => p.id === tempProfileId) 
+      : allProfiles.find(p => p.isDefault);
+      
+    setSlices(active?.slices || allProfiles[0].slices);
+  }, [allProfiles, tempProfileId]);
+
   // ─── ฟังก์ชัน Execute ───
   const executeAction = async (mainId: string | null, childId: string | null) => {
     const currentSlices = slicesRef.current;
-    const currentConfig = configRef.current;
+    const currentConfig = configRef.current as any; 
     
     let targetSlice: ApiSlice | null = null;
     if (childId && mainId) {
@@ -110,50 +96,46 @@ export default function ActionRing() {
       targetSlice = currentSlices.find(s => s.id === mainId) || null;
     }
 
-    // 1. กรณีคลิกโดนปุ่มที่มีคำสั่ง (ไม่ใช่ Folder)
     if (targetSlice && targetSlice.actionType !== "folder") {
       setClickedId(targetSlice.id);
       
-      // --- DEBUG LOG ---
-      console.log("🎯 Action Triggered:", targetSlice.label);
-      console.log("Settings Found:", !!currentConfig);
-      console.log("Close After Exec Setting:", currentConfig?.closeAfterExec);
+      const isReleaseMode = currentConfig?.triggerMode === "release" || currentConfig?.trigger_mode === "release";
+      const settingClose = currentConfig?.closeAfterExec === true || currentConfig?.close_after_exec === true;
 
-      // ✅ แก้ Logic ตรงนี้: ต้องมั่นใจว่า Config โหลดมาแล้ว และเป็น True เท่านั้นถึงจะปิด
-      if (currentConfig && currentConfig.closeAfterExec === true) {
-        console.log("🎬 ActionRing: Closing window because setting is TRUE");
+      // 💥 บังคับว่า "ถ้าเป็นโหมดสลับโปรไฟล์ ห้ามปิดวงแหวนเด็ดขาด!"
+      const isSwitchProfile = targetSlice.actionType === "switch_profile";
+      const shouldClose = !isSwitchProfile && (isReleaseMode || settingClose);
+
+      if (shouldClose) {
+        console.log("🎬 ActionRing: Closing window");
         await invoke("hide_action_ring").catch(console.error);
       } else {
-        console.log("⏸️ ActionRing: Staying open because setting is FALSE or undefined");
+        setTimeout(() => { setClickedId(null); }, 150);
       }
       
       // ส่งไปรันคำสั่งที่ Rust
       invoke("execute_action", { action: targetSlice }).catch((err) => {
-         console.error("Rust Execute Error:", err);
+        console.error("Rust Execute Error:", err);
       });
       
-    } 
-    // 2. กรณีคลิกที่ว่าง หรือคลิกโดน X ตรงกลาง
-    else if (!targetSlice || (targetSlice.actionType !== "folder" && !mainId)) {
-      console.log("🌑 ActionRing: Closing window because background/center was clicked");
-      invoke("hide_action_ring").catch(console.error);
+    } else if (!targetSlice || (targetSlice.actionType !== "folder" && !mainId)) {
+      const isReleaseMode = currentConfig?.triggerMode === "release" || currentConfig?.trigger_mode === "release";
+      if (isReleaseMode || !mainId) {
+        invoke("hide_action_ring").catch(console.error);
+      }
     }
   };
 
   useEffect(() => {
     loadData();
+    
     const unlistenShow = listen("ring:show", () => {
       setIsVisible(false);
       loadData();
       setHoveredMainId(null); setHoveredChildId(null); setClickedId(null);
-      
-      // บันทึกเวลาที่เรียกวงแหวนขึ้นมา
       summonTimeRef.current = Date.now();
-      
-      // 💥 แก้ปัญหาที่ 2: วางพิกัดกึ่งกลางที่ 400, 400 เสมอ!
       setCenter({ x: 400, y: 400 });
       setAnimKey(k => k + 1);
-      
       requestAnimationFrame(() => setIsVisible(true));
     });
 
@@ -161,25 +143,33 @@ export default function ActionRing() {
       setIsVisible(false);
       setCenter({ x: -1000, y: -1000 }); 
       setHoveredMainId(null); setHoveredChildId(null);
+      
+      // 💥 รีเซ็ตกลับเป็นโปรไฟล์หน้าหลัก เมื่อซ่อนวงแหวน
+      setTempProfileId(null); 
     });
 
     const unlistenKeyReleased = listen("ring:key_released", () => {
-      // 💥 แก้ปัญหาที่ 3: Hybrid Release Mode
       const holdDuration = Date.now() - summonTimeRef.current;
-      
-      // ถ้าระยะเวลาที่กดปุ่มน้อยกว่า 200ms แปลว่าผู้ใช้ตั้งใจ "กด Tap" ให้เปิดค้างไว้ ไม่ต้องทำอะไร
-      if (holdDuration < 200) {
-        return; 
-      }
-
-      // แต่ถ้ากดค้างเกิน 200ms แปลว่าตั้งใจใช้โหมด Release ให้รันคำสั่งเลย
+      if (holdDuration < 200) return; 
       if (configRef.current?.triggerMode === "release") {
         executeAction(hoveredMainRef.current, hoveredChildRef.current);
       }
     });
 
+    // 💥 ดักฟังคำสั่งสลับโปรไฟล์จาก Rust
+    const unlistenSwitchProfile = listen<string>("switch_profile", (event) => {
+      setTempProfileId(event.payload); // เปลี่ยนไปใช้โปรไฟล์ใหม่ชั่วคราว
+      setHoveredMainId(null);          // ล้าง Hover เก่าทิ้ง
+      setHoveredChildId(null);
+      setClickedId(null);
+      setAnimKey(k => k + 1);          // บังคับให้วงแหวนเล่นแอนิเมชันเปิดตัวใหม่ จะได้ดูเนียนตา
+    });
+
     return () => {
-      unlistenShow.then(f => f()); unlistenHide.then(f => f()); unlistenKeyReleased.then(f => f());
+      unlistenShow.then(f => f()); 
+      unlistenHide.then(f => f()); 
+      unlistenKeyReleased.then(f => f());
+      unlistenSwitchProfile.then(f => f());
     };
   }, []);
 
@@ -234,14 +224,12 @@ export default function ActionRing() {
   }, [slices, hoveredMainId, clickedId, center, isVisible, DEAD_ZONE, R_MAIN, scaleMult]);
 
   const handleClick = useCallback(() => {
-    if (config?.triggerMode !== "release") {
+    if (hoveredMainId || hoveredChildId) {
       executeAction(hoveredMainId, hoveredChildId);
     } else {
-      if (!hoveredMainId && !hoveredChildId) {
-        invoke("hide_action_ring").catch(console.error);
-      }
+      invoke("hide_action_ring").catch(console.error);
     }
-  }, [hoveredMainId, hoveredChildId, config]);
+  }, [hoveredMainId, hoveredChildId, slices]); // 💥 เพิ่ม slices ลงใน dependency ด้วยเพื่อให้มันจับอัปเดตใหม่ได้ทัน
 
   return (
     <div className="absolute inset-0 w-[800px] h-[800px] select-none overflow-hidden" style={{ background: "transparent" }} onClick={handleClick}>
@@ -252,28 +240,21 @@ export default function ActionRing() {
           <LucideIcons.X size={24 * scaleMult} strokeWidth={3} className="text-red-500" />
         </div>
 
-        // ในส่วนการ map() เพื่อแสดงผล Slices (ประมาณบรรทัด 160+)
         {slices.map((slice, i) => {
           const angle = -Math.PI / 2 + (i * 2 * Math.PI) / slices.length;
-          const animType = config?.animSpeed || "spring"; // ดึงค่าจาก Setting มา
+          const animType = config?.animSpeed || "spring";
 
-          // 1. คำนวณพิกัดเป้าหมาย (พิกัดจริงบนวงกลม)
           const targetX = center.x + R_MAIN * Math.cos(angle);
           const targetY = center.y + R_MAIN * Math.sin(angle);
 
-          // 2. ปรับ Logic พิกัด nx, ny ตามโหมด
           let nx, ny;
           if (animType === "spring") {
-            // 🎾 โหมด Spring: วิ่งจากกลาง (center) ออกไปหาเป้าหมาย (target)
             nx = isVisible ? targetX : center.x;
             ny = isVisible ? targetY : center.y;
           } else {
-            // ⚡️ โหมดอื่นๆ: อยู่ที่พิกัดเป้าหมายเลย แล้วใช้การ Fade/Scale เอา
-            nx = targetX;
-            ny = targetY;
+            nx = targetX; ny = targetY;
           }
 
-          // 3. กำหนดความเร็วและจังหวะ (Transition) ตามโหมด
           let itemTransition = "";
           if (animType === "instant") itemTransition = "none";
           if (animType === "fast")    itemTransition = "all 0.15s ease-out";
@@ -290,27 +271,17 @@ export default function ActionRing() {
               key={slice.id} 
               className="absolute flex items-center justify-center rounded-full shadow-xl"
               style={{ 
-                width: size, 
-                height: size, 
-                left: nx, 
-                top: ny, 
-                // การขยาย: Instant จะโผล่เลย, โหมดอื่นจะค่อยๆ ขยาย
+                width: size, height: size, left: nx, top: ny, 
                 transform: `translate(-50%, -50%) scale(${isVisible ? 1 : animType === 'instant' ? 1 : 0})`,
                 opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
                 backgroundColor: active ? (slice.color || "#6366f1") : "#C8C8D2", 
                 color: active ? "white" : "#18181b",
                 zIndex: active ? 30 : 20,
-                
-                // ✨ ใช้ตัวแปรที่เราคำนวณไว้ข้างบน
                 transition: itemTransition,
-                
-                // ✨ ใส่ Delay เฉพาะโหมด Spring เท่านั้น โหมดอื่นให้มาพร้อมกัน
                 transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms", 
               }}
             >
               <Icon size={active ? 28 * scaleMult : 22 * scaleMult} strokeWidth={active ? 2.5 : 3} />
-              
-              {/* ส่วน Label */}
               {active && !hoveredChildId && (
                 <div className="absolute top-[-45px] left-1/2 -translate-x-1/2 px-4 py-1.5 bg-white text-zinc-900 font-bold rounded-full shadow-2xl whitespace-nowrap">
                   {slice.label}

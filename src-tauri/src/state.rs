@@ -11,6 +11,11 @@ pub enum ActionType {
     Launch,
     Script,
     Folder,
+    TextSnippet,
+    Media,
+    System,
+    SwitchProfile,
+    MultiAction,
 }
 
 // ── Persistence types ────────────────────────────────────────────────────────

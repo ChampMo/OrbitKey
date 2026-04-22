@@ -170,7 +170,13 @@ fn mk(
 }
 
 /// ฟังก์ชันสำหรับสร้าง Folder (ไม่มี action_data แต่มีลูกได้)
-fn mk_folder(id: &str, label: &str, icon: &str, color: &str, children: Vec<ActionSlice>) -> ActionSlice {
+fn mk_folder(
+    id: &str,
+    label: &str,
+    icon: &str,
+    color: &str,
+    children: Vec<ActionSlice>,
+) -> ActionSlice {
     ActionSlice {
         id: id.to_string(),
         label: label.to_string(),
@@ -193,7 +199,10 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| format!("Cannot resolve app-data directory: {e}"))?;
 
     fs::create_dir_all(&dir).map_err(|e| {
-        format!("Cannot create app-data directory at '{}': {e}", dir.display())
+        format!(
+            "Cannot create app-data directory at '{}': {e}",
+            dir.display()
+        )
     })?;
 
     Ok(dir.join("settings.json"))

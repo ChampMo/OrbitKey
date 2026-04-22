@@ -2,18 +2,26 @@ use crate::actions;
 use crate::state::{ActionSlice, ActionType, AppState, Profile};
 use crate::storage;
 use crate::window_manager;
-use tauri::{AppHandle, Manager, State};
+use serde_json::json;
+use tauri::{AppHandle, State, Manager};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
+use tauri::Emitter;
+use serde::Deserialize;
 
+#[derive(Deserialize)]
+struct MacroStep {
+    #[serde(rename = "type")]
+    step_type: String,
+    data: String,
+}
 #[tauri::command]
 pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
     window_manager::hide_action_ring(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn execute_action(app: AppHandle, action: ActionSlice) -> Result<(), String> {
-    // window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
-
+pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), String> {
     let result: Result<(), String> = match action.action_type {
         ActionType::Shortcut => {
             let data = action.action_data.unwrap_or_default();
@@ -37,8 +45,81 @@ pub async fn execute_action(app: AppHandle, action: ActionSlice) -> Result<(), S
                 .map_err(|e| format!("script task panicked: {e}"))
                 .and_then(|r| r)
         }
-        ActionType::Folder => {
-            // โฟลเดอร์ไม่ต้องทำอะไรตอนรัน
+        ActionType::Folder => Ok(()),
+
+        // 💥 [ส่วนที่เพิ่มใหม่] 💥
+        ActionType::TextSnippet => {
+            let text = action.action_data.unwrap_or_default();
+            tokio::task::spawn_blocking(move || actions::type_text_snippet(&text))
+                .await
+                .map_err(|e| format!("snippet task panicked: {e}"))
+                .and_then(|r| r)
+        }
+        ActionType::Media => {
+            let cmd = action.action_data.unwrap_or_default();
+            tokio::task::spawn_blocking(move || actions::run_media_command(&cmd))
+                .await
+                .map_err(|e| format!("media task panicked: {e}"))
+                .and_then(|r| r)
+        }
+        ActionType::System => {
+            let cmd = action.action_data.unwrap_or_default();
+            tokio::task::spawn_blocking(move || actions::run_system_command(&cmd))
+                .await
+                .map_err(|e| format!("system task panicked: {e}"))
+                .and_then(|r| r)
+        }
+        ActionType::SwitchProfile => {
+            let target_profile = action.action_data.unwrap_or_default();
+            // แจ้งให้หน้าต่าง React อัปเดตไปใช้ Profile ใหม่
+            let _ = _app.emit("switch_profile", target_profile);
+            Ok(())
+        }
+        ActionType::MultiAction => {
+            let json_data = action.action_data.unwrap_or_else(|| "[]".to_string());
+            
+            // 1. แกะ JSON ออกมาเป็น Array ของ MacroStep
+            let steps: Vec<MacroStep> = match serde_json::from_str(&json_data) {
+                Ok(s) => s,
+                Err(e) => return Err(format!("Failed to parse macro JSON: {e}")),
+            };
+
+            // 2. วนลูปรันทีละคำสั่งตามลำดับ
+            for step in steps {
+                let data = step.data.clone();
+                match step.step_type.as_str() {
+                    "delay" => {
+                        // หน่วงเวลาแบบ Async จะได้ไม่ทำให้โปรแกรมค้าง!
+                        let ms: u64 = data.parse().unwrap_or(0);
+                        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                    }
+                    "shortcut" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data)).await;
+                    }
+                    "launch" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::launch_target(&data)).await;
+                    }
+                    "script" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::run_script(&data, &[])).await;
+                    }
+                    "text_snippet" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::type_text_snippet(&data)).await;
+                    }
+                    "media" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::run_media_command(&data)).await;
+                    }
+                    "system" => {
+                        let _ = tokio::task::spawn_blocking(move || actions::run_system_command(&data)).await;
+                    }
+                    "switch_profile" => {
+                        use tauri::Emitter; // ให้แน่ใจว่าเรียกใช้ Emitter
+                        let _ = _app.emit("switch_profile", data);
+                    }
+                    _ => {
+                        println!("[action-ring] Unknown macro step type: {}", step.step_type);
+                    }
+                }
+            }
             Ok(())
         }
     };
@@ -84,22 +165,24 @@ pub fn save_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), String> {
-    
-    // 1. บันทึกลงไฟล์ settings.json
     storage::write_settings(&app, &settings)?;
 
-    // 2. เช็คว่า Hotkey เปลี่ยนหรือเปล่า ถ้าเปลี่ยนให้สั่ง Unregister ของเก่าแล้วลงทะเบียนใหม่ทันที
     let mut current_hotkey = state.active_hotkey.lock().unwrap();
     if *current_hotkey != settings.global_hotkey {
         let _ = crate::hotkey::update_hotkey(&app, &current_hotkey, &settings.global_hotkey);
         *current_hotkey = settings.global_hotkey.clone();
     }
 
-    // (ในอนาคตถ้ามีปลั๊กอิน autostart เราจะเอามาเชื่อมที่นี่ครับ)
-    
+    // 💥 จัดการ Autostart ของจริง!
+    let autostart_manager = app.autolaunch();
+    if settings.start_with_os {
+        let _ = autostart_manager.enable();
+    } else {
+        let _ = autostart_manager.disable();
+    }
+
     Ok(())
 }
-
 // ─── Tauri v2 Export / Import Profiles ─────────────────────────────────────
 
 #[tauri::command]
@@ -116,15 +199,12 @@ pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), Stri
 
     if let Some(path) = result {
         let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
-        std::fs::write(&path_buf, json_string)
-            .map_err(|e| format!("Failed to write: {}", e))?;
+        std::fs::write(&path_buf, json_string).map_err(|e| format!("Failed to write: {}", e))?;
         Ok(())
     } else {
-        app.dialog()
-            .message("Profile export was cancelled by the user.")
-            .title("Export Cancelled")
-            .blocking_show();
-        Err("Export cancelled".to_string())
+        // ✅ เลือกอย่างใดอย่างหนึ่งครับ (แนะนำ Ok(()) เพื่อไม่ให้ React พ่นสีแดง)
+        println!("[action-ring] Export cancelled");
+        Ok(()) 
     }
 }
 
@@ -138,19 +218,15 @@ pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
 
     if let Some(path) = result {
         let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
-        let json_string = std::fs::read_to_string(&path_buf)
-            .map_err(|e| format!("Failed to read: {}", e))?;
-        let profile: Profile = serde_json::from_str(&json_string)
-            .map_err(|e| format!("Failed to deserialize: {}", e))?;
+        let json_string = std::fs::read_to_string(&path_buf).map_err(|e| format!("Failed to read: {}", e))?;
+        let profile: Profile = serde_json::from_str(&json_string).map_err(|e| format!("Failed to deserialize: {}", e))?;
         Ok(profile)
     } else {
-        app.dialog()
-            .message("Profile import was cancelled by the user.")
-            .title("Import Cancelled")
-            .blocking_show();
+        // ✅ ส่ง Err กลับไป (ห้ามมี Ok(()) ต่อท้าย)
         Err("Import cancelled".to_string())
     }
 }
+
 
 #[tauri::command]
 pub fn open_accessibility_settings() {
@@ -161,4 +237,109 @@ pub fn open_accessibility_settings() {
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
             .spawn();
     }
+}
+
+// ─── System & Data Commands ─────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn export_all_data(app: AppHandle) -> Result<(), String> {
+    // 1. โหลดข้อมูลทั้งหมดมารวมกัน
+    let profiles = storage::load_profiles(&app)?;
+    let settings = storage::load_settings(&app)?;
+
+    // สร้างเป็น JSON ก้อนเดียว
+    let export_obj = json!({
+        "profiles": profiles,
+        "settings": settings
+    });
+
+    let json_string = serde_json::to_string_pretty(&export_obj)
+        .map_err(|e| format!("Failed to serialize data: {}", e))?;
+
+    // 2. เปิดหน้าต่างให้ผู้ใช้เลือกว่าจะเซฟไว้ไหน
+    let result = app
+        .dialog()
+        .file()
+        .set_file_name("action_ring_backup.json")
+        .set_title("Export All Data")
+        .add_filter("JSON Files", &["json"])
+        .blocking_save_file();
+
+    if let Some(path) = result {
+        let path_buf = path
+            .into_path()
+            .map_err(|_| "Invalid file path".to_string())?;
+        std::fs::write(&path_buf, json_string).map_err(|e| format!("Failed to write: {}", e))?;
+        Ok(())
+    } else {
+        Err("Export cancelled".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
+    // 1. ให้ผู้ใช้เลือกไฟล์ Backup
+    let result = app
+        .dialog()
+        .file()
+        .set_title("Import All Data")
+        .add_filter("JSON Files", &["json"])
+        .blocking_pick_file();
+
+    if let Some(path) = result {
+        let path_buf = path
+            .into_path()
+            .map_err(|_| "Invalid file path".to_string())?;
+        let json_string =
+            std::fs::read_to_string(&path_buf).map_err(|e| format!("Failed to read: {}", e))?;
+
+        // 2. แกะกล่อง JSON แยกว่าอันไหน Profile อันไหน Setting
+        let parsed: serde_json::Value = serde_json::from_str(&json_string)
+            .map_err(|e| format!("Invalid JSON format: {}", e))?;
+
+        if let Some(profiles_val) = parsed.get("profiles") {
+            let profiles: Vec<Profile> = serde_json::from_value(profiles_val.clone())
+                .map_err(|_| "Failed to parse profiles".to_string())?;
+            storage::write_profiles(&app, &profiles)?;
+        }
+
+        if let Some(settings_val) = parsed.get("settings") {
+            let settings: AppSettings = serde_json::from_value(settings_val.clone())
+                .map_err(|_| "Failed to parse settings".to_string())?;
+            storage::write_settings(&app, &settings)?;
+
+            // อัปเดต Hotkey ใหม่ตามไฟล์ที่ Import มา
+            let state = app.state::<AppState>();
+            let mut current_hotkey = state.active_hotkey.lock().unwrap();
+            let _ = crate::hotkey::update_hotkey(&app, &current_hotkey, &settings.global_hotkey);
+            *current_hotkey = settings.global_hotkey.clone();
+        }
+
+        Ok(())
+    } else {
+        Err("Import cancelled".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn factory_reset(app: AppHandle) -> Result<(), String> {
+    use crate::state::{Profile, AppSettings};
+
+    // 1. สร้าง Profile เริ่มต้นแบบ Manual (ปลอดภัยกว่า)
+    let default_profiles = vec![Profile {
+        id: "default_profile_1".to_string(),
+        name: "Default".to_string(),
+        app_matcher: None,
+        is_default: true,
+        slices: vec![], // วงแหวนว่างเปล่า
+    }];
+    
+    // 2. โหลด Settings ค่าเริ่มต้น
+    let default_settings = AppSettings::default(); 
+    
+    // 3. เขียนทับไฟล์เดิมทั้งหมด
+    storage::write_profiles(&app, &default_profiles)?;
+    storage::write_settings(&app, &default_settings)?;
+    
+    Ok(())
 }

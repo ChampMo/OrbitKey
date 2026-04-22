@@ -95,15 +95,27 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     std::thread::sleep(Duration::from_millis(20));
 
     // ── 4. Click main key ────────────────────────────────────────────────────
-    enigo
-        .key(main_key, Direction::Click)
-        .map_err(|e| format!("Key click failed ({key_str:?}): {e}"))?;
+    if let Err(e) = enigo.key(main_key, Direction::Click) {
+        let mut recovered = false;
 
-    // ── 5. Release modifiers (LIFO order) ────────────────────────────────────
-    for &modifier in modifiers.iter().rev() {
-        enigo
-            .key(modifier, Direction::Release)
-            .map_err(|e| format!("Modifier release failed ({modifier:?}): {e}"))?;
+        // 🇹🇭 ท่าเจาะเกราะภาษาไทย: ถ้ากดภาษาอังกฤษไม่ติด แปลว่าคีย์บอร์ดเป็นภาษาไทยอยู่
+        // เราจะเอาอักษรนั้นไปแปลงเป็นแป้นพิมพ์เกษมณี แล้วส่งให้ Windows/Mac สั่งกดใหม่!
+        if let Key::Unicode(c) = main_key {
+            let thai_char = eng_to_thai_kedmanee(c);
+            if thai_char != c {
+                if enigo.key(Key::Unicode(thai_char), Direction::Click).is_ok() {
+                    recovered = true;
+                    println!(
+                        "[action-ring] ทะลุเกราะภาษาไทยสำเร็จ! (แปลง {} เป็น {})",
+                        c, thai_char
+                    );
+                }
+            }
+        }
+
+        if !recovered {
+            return Err(format!("Key click failed ({key_str:?}): {e}"));
+        }
     }
 
     println!("[action-ring] Shortcut simulated: {shortcut}");
@@ -166,7 +178,6 @@ fn parse_key(s: &str) -> Result<Key, String> {
         }
     }
 }
-
 // ─── Launch ───────────────────────────────────────────────────────────────────
 
 /// Open a URL, document, or executable in a fire-and-forget detached process.
@@ -224,8 +235,7 @@ fn open_with_default_app(target: &str) -> Result<(), String> {
     {
         let mut cmd = Command::new("open");
         cmd.arg(target);
-        spawn_detached(cmd)
-            .map_err(|e| format!("macOS `open` failed for {target:?}: {e}"))?;
+        spawn_detached(cmd).map_err(|e| format!("macOS `open` failed for {target:?}: {e}"))?;
     }
 
     #[cfg(target_os = "windows")]
@@ -391,4 +401,169 @@ fn choose_interpreter(ext: &str, path: &str) -> (String, Vec<String>) {
         // No recognised extension — execute directly (binary or shebang script)
         _ => (path.to_string(), vec![]),
     }
+}
+
+/// แปลงตัวอักษรแป้นพิมพ์อังกฤษ เป็นตัวอักษรภาษาไทย (เกษมณี)
+/// เพื่อใช้หลอก OS ให้หาปุ่มกดเจอเวลาผู้ใช้ลืมเปลี่ยนภาษา
+fn eng_to_thai_kedmanee(c: char) -> char {
+    match c.to_ascii_lowercase() {
+        'a' => 'ฟ',
+        'b' => 'ิ',
+        'c' => 'แ',
+        'd' => 'ก',
+        'e' => 'ำ',
+        'f' => 'ด',
+        'g' => 'เ',
+        'h' => '้',
+        'i' => 'ร',
+        'j' => '่',
+        'k' => 'า',
+        'l' => 'ส',
+        'm' => 'ท',
+        'n' => 'ื',
+        'o' => 'น',
+        'p' => 'ย',
+        'q' => 'ๆ',
+        'r' => 'พ',
+        's' => 'ห',
+        't' => 'ะ',
+        'u' => 'ี',
+        'v' => 'อ',
+        'w' => 'ไ',
+        'x' => 'ป',
+        'y' => 'ั',
+        'z' => 'ผ',
+        '1' => 'ๅ',
+        '2' => '/',
+        '3' => '-',
+        '4' => 'ภ',
+        '5' => 'ถ',
+        '6' => 'ุ',
+        '7' => 'ึ',
+        '8' => 'ค',
+        '9' => 'ต',
+        '0' => 'จ',
+        '-' => 'ข',
+        '=' => 'ช',
+        '[' => 'บ',
+        ']' => 'ล',
+        '\\' => 'ฃ',
+        ';' => 'ว',
+        '\'' => 'ง',
+        ',' => 'ม',
+        '.' => 'ใ',
+        '/' => 'ฝ',
+        _ => c,
+    }
+}
+
+// ─── ฟีเจอร์ใหม่: Text Snippet, Media & System ───────────────────────────────────
+
+/// พิมพ์ข้อความอัตโนมัติ (Text Snippet)
+pub fn type_text_snippet(text: &str) -> Result<(), String> {
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+    // ใช้ enigo พิมพ์ข้อความออกไปตรงๆ เลย
+    enigo.text(text).map_err(|e| e.to_string())?;
+    println!("[action-ring] Typed snippet: {}...", &text.chars().take(15).collect::<String>());
+    Ok(())
+}
+
+/// จัดการคำสั่ง Media / Audio
+/// จัดการคำสั่ง Media / Audio (เวอร์ชันแก้ปัญหา Windows Mic Mute)
+pub fn run_media_command(cmd: &str) -> Result<(), String> {
+    // 💥 1. ดักจับคำสั่งปิดไมค์ (Mic Mute) แบบ Global ของจริง
+    if cmd == "mic_mute" {
+        #[cfg(target_os = "macos")]
+        {
+            let script = "
+                set inputVolume to input volume of (get volume settings)
+                if inputVolume = 0 then
+                    set volume input volume 100
+                else
+                    set volume input volume 0
+                end if
+            ";
+            let _ = std::process::Command::new("osascript").args(["-e", script]).spawn();
+            println!("[action-ring] Toggled mic mute via AppleScript (macOS)");
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // ใช้ PowerShell ส่งคำสั่ง APPCOMMAND_MIC_MUTE (รหัส 24) ไปยัง Windows ส่วนกลาง
+            // วิธีนี้จะชัวร์กว่าการใช้ keybd_event เพราะส่งตรงถึงระบบจัดการเสียงเลยครับ
+            let ps_command = "
+                $m = Add-Type -MemberDefinition '[DllImport(\"user32.dll\")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name 'MuteMic' -PassThru;
+                $m::SendMessage(0xffff, 0x0319, 0, 24 * 0x10000);
+            ";
+            let _ = std::process::Command::new("powershell")
+                .args(["-Command", ps_command])
+                .spawn();
+            println!("[action-ring] Toggled microphone mute via SendMessage (Windows)");
+        }
+
+        return Ok(());
+    }
+
+    // 💥 2. คำสั่ง Media อื่นๆ (Play, Pause, Volume) ใช้ enigo จัดการตามปกติ
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+    
+    let key = match cmd {
+        "media_play_pause" => Key::MediaPlayPause,
+        "media_next" => Key::MediaNextTrack,
+        "media_prev" => Key::MediaPrevTrack,
+        "volume_up" => Key::VolumeUp,
+        "volume_down" => Key::VolumeDown,
+        "volume_mute" => Key::VolumeMute,
+        _ => return Err(format!("Unknown media command: {}", cmd)),
+    };
+
+    enigo.key(key, Direction::Click).map_err(|e| e.to_string())?;
+    println!("[action-ring] Media command executed: {}", cmd);
+    
+    Ok(())
+}
+
+/// จัดการคำสั่งระบบและหน้าต่าง (System / Window)
+pub fn run_system_command(cmd: &str) -> Result<(), String> {
+    match cmd {
+        "sys_sleep" => {
+            #[cfg(target_os = "windows")]
+            let _ = Command::new("rundll32.exe").args(["powrprof.dll,SetSuspendState", "0,1,0"]).spawn();
+            #[cfg(target_os = "macos")]
+            let _ = Command::new("pmset").arg("sleepnow").spawn();
+        }
+        "sys_lock" => {
+            #[cfg(target_os = "windows")]
+            let _ = Command::new("rundll32.exe").args(["user32.dll,LockWorkStation"]).spawn();
+            #[cfg(target_os = "macos")]
+            let _ = Command::new("pmset").args(["displaysleepnow"]).spawn();
+        }
+        "win_show_desktop" => {
+            // แฮ็กง่ายๆ ด้วยการส่งคำสั่งคีย์บอร์ด Win + D
+            let mut enigo = Enigo::new(&Settings::default()).unwrap();
+            let _ = enigo.key(Key::Meta, Direction::Press);
+            let _ = enigo.key(Key::Unicode('d'), Direction::Click);
+            let _ = enigo.key(Key::Meta, Direction::Release);
+        }
+        "win_close" => {
+            // แฮ็กง่ายๆ ด้วยการกด Alt+F4 (Win) หรือ Cmd+W (Mac)
+            let mut enigo = Enigo::new(&Settings::default()).unwrap();
+            #[cfg(target_os = "windows")]
+            {
+                let _ = enigo.key(Key::Alt, Direction::Press);
+                let _ = enigo.key(Key::F4, Direction::Click);
+                let _ = enigo.key(Key::Alt, Direction::Release);
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let _ = enigo.key(Key::Meta, Direction::Press);
+                let _ = enigo.key(Key::Unicode('w'), Direction::Click);
+                let _ = enigo.key(Key::Meta, Direction::Release);
+            }
+        }
+        _ => return Err(format!("Unknown system command: {}", cmd)),
+    }
+    
+    println!("[action-ring] System command executed: {}", cmd);
+    Ok(())
 }
