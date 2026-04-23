@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import InteractionSettings from "./SettingMenu/InteractionSettings";
 import AppearanceSettings from "./SettingMenu/AppearanceSettings";
 import SystemDataSettings from "./SettingMenu/SystemDataSettings";
-import { THEMES, ThemeStyle } from "./Theme";
+import { ThemeId, THEMES, ThemeStyle } from "./Theme";
 
 export interface AppSettings {
   globalHotkey: string;
@@ -16,7 +16,7 @@ export interface AppSettings {
   animSpeed: string;
   deadzone: number;
   centerAction: string;
-  theme: string;
+  theme: ThemeId;
 }
 
 // 💥 แก้ไขฟังก์ชันให้รับ Props 💥
@@ -87,10 +87,11 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 pb-20">
           <div className="space-y-6">
             <InteractionSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
+            <SystemDataSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
           </div>
           <div className="space-y-6">
             <AppearanceSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
-            <SystemDataSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
+            
           </div>
         </div>
       </main>

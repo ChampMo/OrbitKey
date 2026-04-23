@@ -16,7 +16,10 @@ import {
   Zap,
   Lightbulb,
   Undo2, 
-  Redo2
+  Redo2,
+  Download,
+  MoreHorizontal,
+  CheckCircle2
 } from "lucide-react";
 
 import SettingsPanel from "./SettingsPanel";
@@ -25,7 +28,7 @@ import SliceEditor from "./components/SliceEditor";
 import { ICON_MAP, ICON_LIST } from "./IconMap";
 
 // 💥 นำเข้า THEMES จากไฟล์ Theme.tsx 💥
-import { THEMES } from "./Theme"; 
+import { ThemeId, THEMES } from "./Theme"; 
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 export type ActionTypeValue = 
@@ -37,7 +40,9 @@ export type ActionTypeValue =
   | "media"
   | "system"
   | "switch_profile"
-  | "multi_action";
+  | "multi_action"
+  | "open_app" 
+  | "open_control_panel";
 
 export interface ApiSlice {
   id: string;
@@ -57,6 +62,20 @@ export interface ApiProfile {
   isDefault: boolean;
   slices: ApiSlice[];
 }
+
+interface AppSettings { 
+  globalHotkey: string; 
+  startWithOS: boolean; 
+  ringScale: number; 
+  closeAfterExec: boolean; 
+  triggerMode: string; 
+  animSpeed: string; 
+  deadzone: number; 
+  centerAction: string; 
+  theme: ThemeId;}
+
+
+
 
 export const ACCENT_PALETTE = [
   "#4285f4", "#0ea5e9", "#10b981", "#f59e0b",
@@ -85,12 +104,14 @@ function emptySlice(): ApiSlice {
   };
 }
 
+
+
 // ─── 5. Main Control Panel Component ──────────────────────────────────────
 export default function ControlPanel() {
   const [currentView, setCurrentView] = useState<"profiles" | "settings">("profiles");
   const [showProTip, setShowProTip] = useState(false);
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
-  const [config, setConfig] = useState<any>(null); 
+  const [config, setConfig] = useState<AppSettings | null>(null);
   
   const [past, setPast] = useState<ApiProfile[][]>([]);
   const [future, setFuture] = useState<ApiProfile[][]>([]);
@@ -875,16 +896,16 @@ export default function ControlPanel() {
       </div>
     );
 
-  const activeTheme = THEMES[config?.theme] || THEMES.dark;
+  const activeTheme = THEMES[config?.theme ?? "dark"];
 
-  if (currentView === "settings") {
+  if (currentView === "settings" && config) {
     return (
       <SettingsPanel 
-        initialConfig={config}
+        initialConfig={config!}
         activeTheme={activeTheme}
         onBack={() => {
           setCurrentView("profiles");
-          invoke<any>("get_settings").then(c => { if(c) setConfig(c); }).catch(console.error);
+          invoke<AppSettings>("get_settings").then(c => { if(c) setConfig(c); }).catch(console.error);
         }} 
       />
     );
@@ -958,6 +979,7 @@ export default function ControlPanel() {
         className={`shrink-0 flex items-center justify-between px-8 py-5 border-b z-10 shadow-sm transition-colors duration-500 ${activeTheme.panel} ${activeTheme.border}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* --- ฝั่งซ้าย: Profile Tabs & Add/Import Menu --- */}
         <div className="flex items-center gap-3">
           {displayProfiles.map((p) => {
             const realIdx = profiles.findIndex(orig => orig.id === p.id);
@@ -972,7 +994,6 @@ export default function ControlPanel() {
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ease-out touch-none cursor-grab active:cursor-grabbing
                   ${draggedProfileId === p.id ? "opacity-0 scale-95" : "opacity-100 scale-100"}
                   ${isActive && draggedProfileId !== p.id 
-                    // 💥 แก้ตรงนี้: ธีมมืดใช้พื้นขาวโปร่งแสง ธีมสว่างใช้ปุ่มสีขาวทึบพร้อมเงาเบาๆ
                     ? (activeTheme.isDark ? "bg-white/10 text-white border border-white/20 shadow-sm" : "bg-white text-black border border-black/10 shadow-sm") 
                     : `opacity-60 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'} border border-transparent`}
                 `}
@@ -982,23 +1003,64 @@ export default function ControlPanel() {
               </button>
             );
           })}
-          <button onClick={handleAddProfile} className={`w-10 h-10 flex items-center justify-center rounded-xl border border-dashed opacity-50 hover:opacity-100 ${activeTheme.isDark ? 'border-white/30 hover:bg-white/5' : 'border-black/30 hover:bg-black/5'} transition-colors`} title="Add Profile">
-            <Plus size={20} />
-          </button>
+
+          {/* ปุ่ม (+) ที่ขยายตัวเองเป็นเมนู Dropdown */}
+          <div className="relative group w-10 h-10">
+            
+            {/* ตัวปุ่ม (+) เดิม (จะจางหายไปและหดลงนิดหน่อยตอน Hover) */}
+            <button 
+              onClick={handleAddProfile} 
+              className={`absolute inset-0 w-full h-full flex items-center justify-center rounded-xl border border-dashed transition-all duration-300 ease-out group-hover:opacity-0 group-hover:scale-75 ${activeTheme.isDark ? 'border-white/30' : 'border-black/30'}`} 
+              title="Add or Import Profile"
+            >
+              <Plus size={20} className="opacity-60" />
+            </button>
+            
+            {/* กล่องเมนูที่จะ "ขยาย" ออกมาจากจุดของปุ่ม (+) */}
+            <div 
+              className={`absolute top-0 left-0 w-48 p-2 border rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 ease-out z-50 transform origin-top-left scale-50 group-hover:scale-100 overflow-hidden ${activeTheme.isDark ? 'bg-[#1a1a1c] border-white/10 text-zinc-300' : 'bg-white border-black/10 text-zinc-700'}`}
+            >
+              <button 
+                onClick={handleAddProfile} 
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-left transition-colors ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+              >
+                <Plus size={14} className="opacity-60" /> New Profile
+              </button>
+              <button 
+                onClick={handleImport} 
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-left transition-colors ${activeTheme.isDark ? 'hover:bg-white/10 text-indigo-400' : 'hover:bg-black/5 text-indigo-600'}`}
+              >
+                <Download size={14} className="opacity-60" /> Import Profile...
+              </button>
+            </div>
+
+          </div>
         </div>
 
+        {/* --- ฝั่งขวา: Utilities & Settings --- */}
         <div className="flex items-center gap-5">
-          <div className={`flex items-center gap-1 rounded-xl p-1 border ${activeTheme.isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
-            <button onClick={handleUndo} disabled={past.length === 0} className={`p-1.5 opacity-70 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'} rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all`} title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
-            <div className={`w-px h-4 ${activeTheme.isDark ? 'bg-white/20' : 'bg-black/20'}`}></div>
-            <button onClick={handleRedo} disabled={future.length === 0} className={`p-1.5 opacity-70 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'} rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all`} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16} /></button>
-          </div>
-          <button onClick={() => setShowProTip(true)} className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-xl text-sm font-bold border border-yellow-500/20 transition-all shadow-sm">
-            <Lightbulb size={16} className="animate-pulse" /> Pro Tip
+          {/* Pro Tip */}
+          <button onClick={() => setShowProTip(true)} className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-xl text-xs font-bold border border-yellow-500/20 transition-all shadow-sm">
+            <Lightbulb size={14} className="animate-pulse" /> Pro Tip
           </button>
-          <button onClick={handleImport} className={`text-sm font-medium opacity-70 hover:opacity-100 px-4 py-2 rounded-lg ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'} transition-colors`}>Import</button>
-          <div className={`h-6 w-px mx-2 ${activeTheme.isDark ? 'bg-white/20' : 'bg-black/10'}`}></div>
-          <button onClick={() => setCurrentView("settings")} className={`flex items-center px-1 py-2.5 opacity-70 hover:opacity-100 text-sm font-semibold rounded-xl transition-all`}><Settings size={22} /></button>
+          
+          {/* Undo / Redo Group */}
+          <div className={`flex items-center gap-1 rounded-xl p-1 border ${activeTheme.isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
+            <button onClick={handleUndo} disabled={past.length === 0} className={`p-1.5 opacity-70 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'} rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all`} title="Undo (Ctrl+Z)">
+              <Undo2 size={16} />
+            </button>
+            <div className={`w-px h-4 ${activeTheme.isDark ? 'bg-white/20' : 'bg-black/20'}`}></div>
+            <button onClick={handleRedo} disabled={future.length === 0} className={`p-1.5 opacity-70 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'} rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all`} title="Redo (Ctrl+Shift+Z)">
+              <Redo2 size={16} />
+            </button>
+          </div>
+          
+          <div className={`h-6 w-px mx-1 ${activeTheme.isDark ? 'bg-white/20' : 'bg-black/10'}`}></div>
+          
+          {/* Settings */}
+          <button onClick={() => setCurrentView("settings")} className={`p-2 opacity-60 hover:opacity-100 hover:rotate-45 rounded-xl transition-all duration-300 ${activeTheme.isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`} title="Settings">
+            <Settings size={22} />
+          </button>
         </div>
       </header>
 
@@ -1011,47 +1073,95 @@ export default function ControlPanel() {
           ></div>
 
           <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-20 pointer-events-none">
-            <div className="flex items-start gap-4 w-2/3 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+  
+            {/* =========================================
+                ฝั่งซ้าย: ชื่อ Profile + สถานะ (Identity)
+            ========================================= */}
+            <div className="flex items-start gap-4 w-full max-w-[500px] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+              
+              {/* ปุ่ม Back (ตอนอยู่ใน Folder) */}
               {activeFolderId && (
                 <button onClick={() => { setActiveFolderId(null); setEditingId(null); }} className={`flex items-center justify-center w-10 h-10 mt-1 ${activeTheme.isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'} rounded-full transition-colors shadow-sm shrink-0`}>
                   <ChevronLeft size={20} />
                 </button>
               )}
 
-              <div className="flex flex-col gap-2 w-full max-w-[300px]">
+              <div className="flex flex-col gap-1 w-full">
+                {/* แถวที่ 1: ช่องกรอกชื่อ */}
                 <input
                   type="text"
                   value={activeFolderId ? activeProfile?.slices.find((s) => s.id === activeFolderId)?.label || "Folder" : activeProfile?.name || ""}
                   onChange={(e) => { if (!activeFolderId) handleProfileNameChange(e.target.value); }}
                   readOnly={!!activeFolderId}
-                  className={`bg-transparent text-2xl font-bold focus:outline-none border-b border-transparent ${!activeFolderId && "focus:border-indigo-500/50"} transition-colors w-full placeholder-current placeholder-opacity-40 text-current`}
-                  placeholder="Enter Profile Name..." spellCheck={false}
+                  className={`bg-transparent text-3xl font-bold tracking-tight focus:outline-none border-b-2 border-transparent transition-all w-full max-w-[300px] pb-1 placeholder-current placeholder-opacity-40 text-current ${
+                    !activeFolderId 
+                      ? (activeTheme.isDark ? "hover:border-white/20 focus:border-indigo-500" : "hover:border-black/10 focus:border-indigo-500") 
+                      : ""
+                  }`}
+                  placeholder="Enter Profile Name..." 
+                  spellCheck={false}
                 />
-                {!activeFolderId && (activeProfile?.isDefault ? (
-                    <span className="flex items-center gap-2 px-3 py-1.5 text-green-500 bg-green-500/10 border border-green-500/20 rounded-lg text-xs font-bold w-fit">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]"></div> Active Profile
-                    </span>
-                  ) : (
-                    <button onClick={handleSetDefaultProfile} className={`flex items-center gap-2 px-3 py-1.5 ${activeTheme.isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'} text-current rounded-lg text-xs font-semibold transition-all shadow-sm w-fit pointer-events-auto`}>
-                      Use this profile
-                    </button>
-                  ))}
+
+                {/* แถวที่ 2: ป้าย Active หรือ ปุ่ม Use this profile (กลับมาอยู่ด้านล่าง) */}
+                {!activeFolderId && (
+                  <div className="h-8 flex items-center mt-1"> 
+                    {activeProfile?.isDefault ? (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 text-green-500 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-default">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]"></div> Active Profile
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={handleSetDefaultProfile} 
+                        className={`flex items-center gap-2 px-3 py-1.5 ${activeTheme.isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'} text-current rounded-lg text-xs font-semibold transition-all shadow-sm w-fit pointer-events-auto`}
+                      >
+                        <CheckCircle2 size={14} className="text-green-500" /> Use this profile
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* =========================================
+                ฝั่งขวา: ปุ่ม ... (Profile Actions)
+            ========================================= */}
             {!activeFolderId && (
-              <button onClick={(e) => { e.stopPropagation(); handleExport(); }} 
-              className={`flex items-center gap-2 px-4 py-2.5 ${activeTheme.isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-white hover:bg-black/5'} text-current rounded-xl text-sm font-medium border ${activeTheme.border} transition-all shadow-sm backdrop-blur-sm z-20 pointer-events-auto`}>
-                <Upload size={16} /> Export Profile
-              </button>
-            )}
-          </div>
+              <div className="relative group shrink-0 pointer-events-auto">
+                <button 
+                  className={`p-2 rounded-xl border border-transparent transition-all opacity-40 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10 hover:border-white/20' : 'hover:bg-black/5 hover:border-black/10'}`}
+                  title="Profile Options"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal size={24} />
+                </button>
 
-          {!activeFolderId && (
-            <button onClick={(e) => { e.stopPropagation(); handleDeleteProfile(); }} className="absolute bottom-8 left-8 z-[999] flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-semibold border border-red-500/20 transition-all pointer-events-auto shadow-sm">
-              <Trash2 size={16} className="pointer-events-none" /> <span className="pointer-events-none">Delete Profile</span>
-            </button>
-          )}
+                {/* Dropdown Menu (เปลี่ยนเป็น right-0 และ origin-top-right เพื่อกางเข้าหาซ้าย) */}
+                <div className={`absolute top-full right-0 mt-2 w-48 p-1.5 border rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform origin-top-right scale-95 group-hover:scale-100 ${activeTheme.isDark ? 'bg-[#1a1a1c] border-white/10 text-zinc-300' : 'bg-white border-black/10 text-zinc-700'}`}>
+                  
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleExport(); }} 
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-left transition-colors ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                  >
+                    <Upload size={16} className="opacity-60" /> Export Profile
+                  </button>
+
+                  <div className={`h-px w-full my-1 ${activeTheme.isDark ? 'bg-white/10' : 'bg-black/5'}`}></div>
+
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      handleDeleteProfile(); 
+                    }} 
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-left transition-colors text-red-500 hover:bg-red-500/10 hover:text-red-600"
+                  >
+                    <Trash2 size={16} className="opacity-70" /> Delete Profile
+                  </button>
+
+                </div>
+              </div>
+            )}
+
+          </div>
 
           <div ref={canvasRef} className="relative w-[600px] h-[600px] flex items-center justify-center mt-12" onClick={(e) => e.stopPropagation()}>
             <div className={`absolute left-1/2 top-1/2 w-12 h-12 rounded-full ${activeTheme.panel} border ${activeTheme.border} shadow-lg z-0 flex items-center justify-center backdrop-blur-md`} style={{ transform: "translate(-50%, -50%)" }}>
@@ -1074,23 +1184,41 @@ export default function ControlPanel() {
           </button>
         </div>
 
-        <div className={`w-1.5 cursor-col-resize shrink-0 z-50 transition-colors ${activeTheme.isDark ? 'bg-white/5 hover:bg-white/20' : 'bg-black/5 hover:bg-black/20'}`} 
+        <div 
+          className={`w-1.5 cursor-col-resize shrink-0 z-50 transition-colors ${activeTheme.isDark ? 'bg-white/5 hover:bg-white/20' : 'bg-black/5 hover:bg-black/20'}`} 
+          
+          // 1. ป้องกันการคลิกพื้นหลังเวลาแค่กดโดนเส้นกั้น
+          onClick={(e) => e.stopPropagation()} 
+          
           onPointerDown={(e) => {
+            // 2. หยุด Event ไม่ให้ส่งต่อไปยัง Canvas
+            e.stopPropagation(); 
             e.preventDefault();
+
             const startX = e.clientX;
             const rightPanel = document.getElementById("right-editor-panel");
             if (!rightPanel) return;
+
+            // 3. ใช้ Pointer Capture เพื่อให้การลากไม่หลุดแม้เม้าส์จะออกจากเส้น 1.5px
+            const target = e.currentTarget;
+            target.setPointerCapture(e.pointerId);
+
             const startWidth = rightPanel.offsetWidth;
+
             const onMove = (moveEvent: PointerEvent) => {
               const delta = startX - moveEvent.clientX;
               const newWidth = Math.max(320, Math.min(startWidth + delta, 800));
               rightPanel.style.width = `${newWidth}px`;
             };
-            const onUp = () => {
+
+            const onUp = (upEvent: PointerEvent) => {
+              // 4. ลบ Event และคืนค่า Cursor
               window.removeEventListener("pointermove", onMove);
               window.removeEventListener("pointerup", onUp);
+              target.releasePointerCapture(upEvent.pointerId); // คืนค่า Capture
               document.body.style.cursor = "default";
             };
+
             document.body.style.cursor = "col-resize";
             window.addEventListener("pointermove", onMove);
             window.addEventListener("pointerup", onUp);

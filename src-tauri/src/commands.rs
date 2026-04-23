@@ -7,8 +7,10 @@ use tauri::{AppHandle, State, Manager};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
 use tauri::Emitter;
-use serde::Deserialize;
 use std::fs;
+use serde::{Serialize, Deserialize};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Deserialize)]
 struct MacroStep {
@@ -16,6 +18,16 @@ struct MacroStep {
     step_type: String,
     data: String,
 }
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[derive(Serialize, Deserialize)]
+pub struct AppInfo {
+    name: String,
+    path: String,
+}
+
 #[tauri::command]
 pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
     // 💥 เติม ? ไว้ท้ายสุดเพื่อให้มันส่ง Error ออกไปถ้าซ่อนหน้าต่างไม่สำเร็จ
@@ -26,7 +38,7 @@ pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), String> {
+pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Result<(), String> {
     let result: Result<(), String> = match action.action_type {
         ActionType::Shortcut => {
             let data = action.action_data.unwrap_or_default();
@@ -51,8 +63,6 @@ pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), 
                 .and_then(|r| r)
         }
         ActionType::Folder => Ok(()),
-
-        // 💥 [ส่วนที่เพิ่มใหม่] 💥
         ActionType::TextSnippet => {
             let text = action.action_data.unwrap_or_default();
             tokio::task::spawn_blocking(move || actions::type_text_snippet(&text))
@@ -76,25 +86,59 @@ pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), 
         }
         ActionType::SwitchProfile => {
             let target_profile = action.action_data.unwrap_or_default();
-            // แจ้งให้หน้าต่าง React อัปเดตไปใช้ Profile ใหม่
+            use tauri::Emitter; // ให้แน่ใจว่าเรียกใช้ Emitter
             let _ = _app.emit("switch_profile", target_profile);
             Ok(())
         }
+
+        // 💥 [ส่วนที่เพิ่มใหม่: ระบบเปิดแอป] 💥
+        ActionType::OpenApp => {
+            let data = action.action_data.unwrap_or_else(|| "[]".to_string());
+            if let Ok(paths) = serde_json::from_str::<Vec<String>>(&data) {
+                for path in paths {
+                    #[cfg(target_os = "windows")]
+                    let _ = std::process::Command::new(&path).spawn(); // รันตรงๆ ไปเลย
+                    
+                    #[cfg(target_os = "macos")]
+                    let _ = std::process::Command::new("open").arg(&path).spawn();
+                }
+            }
+            Ok(())
+        }
+
+        // 💥 2. ระบบโชว์ Control Panel (สร้างใหม่ถ้าเผลอกดปิดไป) 💥
+        ActionType::OpenControlPanel => {
+            if let Some(window) = _app.get_webview_window("main") {
+                // ถ้าหน้าต่างซ่อนอยู่ ให้โชว์
+                let _ = window.show();
+                let _ = window.set_focus();
+            } else {
+                // ถ้าหน้าต่างถูกปิด (Destroy) ไปแล้ว ให้สร้างใหม่
+                let _ = tauri::WebviewWindowBuilder::new(
+                    &_app,
+                    "main",
+                    tauri::WebviewUrl::App("index.html".into())
+                )
+                .title("Action Ring — Control Panel")
+                .inner_size(1000.0, 700.0) // 💡 แชมป์ปรับขนาดเริ่มต้นตรงนี้ได้ครับ
+                .build();
+            }
+            Ok(())
+        }
+
+
         ActionType::MultiAction => {
             let json_data = action.action_data.unwrap_or_else(|| "[]".to_string());
             
-            // 1. แกะ JSON ออกมาเป็น Array ของ MacroStep
             let steps: Vec<MacroStep> = match serde_json::from_str(&json_data) {
                 Ok(s) => s,
                 Err(e) => return Err(format!("Failed to parse macro JSON: {e}")),
             };
 
-            // 2. วนลูปรันทีละคำสั่งตามลำดับ
             for step in steps {
                 let data = step.data.clone();
                 match step.step_type.as_str() {
                     "delay" => {
-                        // หน่วงเวลาแบบ Async จะได้ไม่ทำให้โปรแกรมค้าง!
                         let ms: u64 = data.parse().unwrap_or(0);
                         tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
                     }
@@ -117,14 +161,42 @@ pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), 
                         let _ = tokio::task::spawn_blocking(move || actions::run_system_command(&data)).await;
                     }
                     "switch_profile" => {
-                        use tauri::Emitter; // ให้แน่ใจว่าเรียกใช้ Emitter
+                        use tauri::Emitter;
                         let _ = _app.emit("switch_profile", data);
+                    }
+                    "open_app" => {
+                        if let Ok(paths) = serde_json::from_str::<Vec<String>>(&data) {
+                            for path in paths {
+                                #[cfg(target_os = "windows")]
+                                let _ = std::process::Command::new(&path).spawn();
+                                
+                                #[cfg(target_os = "macos")]
+                                let _ = std::process::Command::new("open").arg(&path).spawn();
+                            }
+                        }
+                    }
+                    // 💥 เพิ่มให้ Macro เรียก Control Panel แบบใหม่ได้ด้วย 💥
+                    "open_control_panel" => {
+                        if let Some(window) = _app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        } else {
+                            let _ = tauri::WebviewWindowBuilder::new(
+                                &_app,
+                                "main",
+                                tauri::WebviewUrl::App("index.html".into())
+                            )
+                            .title("Action Ring — Control Panel")
+                            .inner_size(1000.0, 700.0)
+                            .build();
+                        }
                     }
                     _ => {
                         println!("[action-ring] Unknown macro step type: {}", step.step_type);
                     }
                 }
             }
+            
             Ok(())
         }
     };
@@ -365,4 +437,82 @@ pub async fn factory_reset(app: AppHandle) -> Result<(), String> {
     storage::write_settings(&app, &default_settings)?;
     
     Ok(())
+}
+
+
+
+#[tauri::command]
+pub fn get_installed_apps() -> Vec<AppInfo> {
+    let mut apps = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // 💥 เพิ่มบรรทัด OutputEncoding เพื่อรองรับแอปชื่อภาษาไทย 💥
+        let ps_script = r#"
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
+            $sh = New-Object -ComObject WScript.Shell;
+            $paths = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs");
+            $results = @();
+            foreach ($path in $paths) {
+                if (Test-Path $path) {
+                    Get-ChildItem -Path $path -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | ForEach-Object {
+                        $link = $sh.CreateShortcut($_.FullName);
+                        $target = $link.TargetPath;
+                        if ($target -match '\.exe$' -and $_.BaseName -notmatch '(?i)uninstall|setup|help|url|unins|settings') {
+                            $results += [PSCustomObject]@{ name = $_.BaseName; path = $target }
+                        }
+                    }
+                }
+            }
+            @($results) | Sort-Object name -Unique | ConvertTo-Json -Compress
+        "#;
+
+        let mut cmd = std::process::Command::new("powershell");
+        cmd.args(["-NoProfile", "-Command", ps_script]);
+        
+        #[cfg(windows)]
+        std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x08000000);
+
+        if let Ok(output) = cmd.output() {
+            // ตอนนี้ String::from_utf8 จะอ่านภาษาไทยออกแล้ว!
+            if let Ok(json_str) = String::from_utf8(output.stdout) {
+                if let Ok(parsed_apps) = serde_json::from_str::<Vec<AppInfo>>(&json_str) {
+                    apps = parsed_apps;
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::fs;
+        if let Ok(entries) = fs::read_dir("/Applications") {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |ext| ext == "app") {
+                    if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
+                        apps.push(AppInfo {
+                            name: name.to_string(),
+                            path: path.to_string_lossy().to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // จัดเรียงกันเหนียวอีกรอบ
+    apps.sort_by(|a, b| a.name.cmp(&b.name));
+    apps.dedup_by(|a, b| a.name == b.name);
+    
+    apps
+}
+
+#[tauri::command]
+pub fn show_control_panel(handle: tauri::AppHandle) {
+    // พยายามดึงหน้าต่างที่ชื่อ "main" (หรือชื่อที่แชมป์ตั้งไว้ใน tauri.conf.json)
+    if let Some(window) = handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }

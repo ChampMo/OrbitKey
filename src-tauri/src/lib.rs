@@ -48,16 +48,16 @@ pub fn run() {
             commands::get_profiles,
             commands::save_profiles,
             commands::get_hotkey,
-            
             commands::export_profile,
             commands::import_profile,
             commands::get_settings,
             commands::save_settings,
             commands::open_accessibility_settings,
-            // 💥 3. เพิ่ม 3 คำสั่งใหม่สำหรับจัดการข้อมูล
             commands::export_all_data,
             commands::import_all_data,
             commands::factory_reset,
+            commands::get_installed_apps,
+            commands::show_control_panel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

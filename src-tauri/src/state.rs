@@ -16,6 +16,8 @@ pub enum ActionType {
     System,
     SwitchProfile,
     MultiAction,
+    OpenApp,
+    OpenControlPanel,
 }
 
 // ── Persistence types ────────────────────────────────────────────────────────

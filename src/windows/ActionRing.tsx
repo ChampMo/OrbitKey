@@ -9,10 +9,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import * as LucideIcons from "lucide-react";
+import { ThemeId } from "./Theme";
 
 interface ApiSlice { id: string; label: string; icon?: string; color?: string; actionType: string; actionData?: string | null; scriptArgs?: string[]; children?: ApiSlice[] | null; }
 interface ApiProfile { id: string; name: string; slices: ApiSlice[]; isDefault: boolean; }
-interface AppSettings { globalHotkey: string; startWithOS: boolean; ringScale: number; closeAfterExec: boolean; triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; theme: "dark" | "light" | "ocean";}
+interface AppSettings { 
+  globalHotkey: string; 
+  startWithOS: boolean; 
+  ringScale: number; 
+  closeAfterExec: boolean; 
+  triggerMode: string; 
+  animSpeed: string; 
+  deadzone: number; 
+  centerAction: string; 
+  theme: ThemeId;}
 
 export default function ActionRing() {
   const [allProfiles, setAllProfiles] = useState<ApiProfile[]>([]);
