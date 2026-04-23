@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Action Ring",
+  "productName": "OrbitKey",
   "version": "0.1.0",
-  "identifier": "com.actionring.desktop",
+  "identifier": "com.orbitkey.desktop",
 
   "build": {
     "frontendDist": "../dist",
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Action Ring — Control Panel",
+        "title": "OrbitKey — Control Panel",
         "width": 1100,
         "height": 720,
         "minWidth": 900,
@@ -29,7 +29,7 @@
       },
       {
         "label": "action-ring",
-        "title": "",
+        "title": "OrbitKey — Action Ring",
         "acceptFirstMouse": true,
         "width": 800,
         "height": 800,

@@ -119,7 +119,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                     "main",
                     tauri::WebviewUrl::App("index.html".into())
                 )
-                .title("Action Ring — Control Panel")
+                .title("OrbitKey — Control Panel")
                 .inner_size(1000.0, 700.0) // 💡 แชมป์ปรับขนาดเริ่มต้นตรงนี้ได้ครับ
                 .build();
             }
