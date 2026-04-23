@@ -3,7 +3,7 @@ use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 
 mod actions;
-mod commands;
+pub mod commands;
 mod hotkey;
 mod state;
 mod storage;
@@ -17,6 +17,7 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
@@ -47,6 +48,7 @@ pub fn run() {
             commands::get_profiles,
             commands::save_profiles,
             commands::get_hotkey,
+            
             commands::export_profile,
             commands::import_profile,
             commands::get_settings,

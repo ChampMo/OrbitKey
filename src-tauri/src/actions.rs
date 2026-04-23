@@ -63,13 +63,12 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
         return Err(format!("Empty shortcut string: {:?}", shortcut));
     }
 
-    // Everything before the last token is a modifier; the last token is the key.
     let (mod_tokens, key_tokens) = tokens.split_at(tokens.len() - 1);
     let key_str = key_tokens[0];
 
     let modifiers: Vec<Key> = mod_tokens
         .iter()
-        .map(|s| parse_modifier(s))
+        .map(|s| parse_modifier(s)) // ตรวจสอบ parse_modifier ด้วยนะครับว่าห้ามมี .unwrap()
         .collect::<Result<_, _>>()?;
 
     let main_key = parse_key(key_str)?;
@@ -78,44 +77,51 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
         format!(
             "Failed to initialise input simulator: {e}\n\
-             On macOS, grant Accessibility access to this app in\n\
-             System Preferences → Privacy & Security → Accessibility."
+             On macOS, grant Accessibility access to this app."
         )
     })?;
 
     // ── 3. Press modifiers (order-preserved) ─────────────────────────────────
     for &modifier in &modifiers {
-        enigo
-            .key(modifier, Direction::Press)
-            .map_err(|e| format!("Modifier press failed ({modifier:?}): {e}"))?;
+        let _ = enigo.key(modifier, Direction::Press);
     }
 
-    // Short pause so the OS registers the full modifier state
-    // before the main key event arrives.
     std::thread::sleep(Duration::from_millis(20));
 
     // ── 4. Click main key ────────────────────────────────────────────────────
+    let mut is_success = true;
+    let mut error_message = String::new();
+
     if let Err(e) = enigo.key(main_key, Direction::Click) {
         let mut recovered = false;
 
-        // 🇹🇭 ท่าเจาะเกราะภาษาไทย: ถ้ากดภาษาอังกฤษไม่ติด แปลว่าคีย์บอร์ดเป็นภาษาไทยอยู่
-        // เราจะเอาอักษรนั้นไปแปลงเป็นแป้นพิมพ์เกษมณี แล้วส่งให้ Windows/Mac สั่งกดใหม่!
+        // 🇹🇭 ท่าเจาะเกราะภาษาไทย
         if let Key::Unicode(c) = main_key {
             let thai_char = eng_to_thai_kedmanee(c);
             if thai_char != c {
                 if enigo.key(Key::Unicode(thai_char), Direction::Click).is_ok() {
                     recovered = true;
-                    println!(
-                        "[action-ring] ทะลุเกราะภาษาไทยสำเร็จ! (แปลง {} เป็น {})",
-                        c, thai_char
-                    );
+                    println!("[action-ring] ทะลุเกราะภาษาไทยสำเร็จ! (แปลง {} เป็น {})", c, thai_char);
                 }
             }
         }
 
         if !recovered {
-            return Err(format!("Key click failed ({key_str:?}): {e}"));
+            is_success = false;
+            error_message = format!("Key click failed ({key_str:?}): {e}");
         }
+    }
+
+    // 💥 5. RELEASE MODIFIERS (สำคัญที่สุด!!!) 💥
+    // เราต้องคลายปุ่มเสมอ ไม่ว่าจะกด main_key สำเร็จหรือเกิด Error ก็ตาม
+    // โดยใช้ .rev() เพื่อปล่อยปุ่มถอยหลัง (เช่น กด ctrl -> shift ตอนปล่อยต้องปล่อย shift -> ctrl)
+    for &modifier in modifiers.iter().rev() {
+        let _ = enigo.key(modifier, Direction::Release);
+    }
+
+    // ถ้ากดไม่สำเร็จ ค่อยโยน Error ออกไป "หลังจาก" ปล่อยปุ่มเสร็จแล้ว
+    if !is_success {
+        return Err(error_message);
     }
 
     println!("[action-ring] Shortcut simulated: {shortcut}");
@@ -125,15 +131,29 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
 /// Map a lowercase modifier token to an [`enigo::Key`].
 fn parse_modifier(s: &str) -> Result<Key, String> {
     match s {
+        // 💥 เมื่อเจอคำว่า cmd, command หรือ meta
+        "cmd" | "command" | "meta" => {
+            #[cfg(target_os = "macos")]
+            {
+                // ถ้าเป็น Mac ให้ใช้ปุ่ม Meta (Command)
+                Ok(Key::Meta)
+            }
+            #[cfg(target_os = "windows")]
+            {
+                // ถ้าเป็น Windows ให้แปลงเป็น Control อัตโนมัติ!
+                Ok(Key::Control)
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            {
+                Ok(Key::Meta) // Fallback สำหรับ OS อื่นๆ
+            }
+        },
         "ctrl" | "control" => Ok(Key::Control),
         "shift" => Ok(Key::Shift),
         "alt" | "option" => Ok(Key::Alt),
-        // Meta == macOS ⌘ Command  |  Windows ⊞  |  Linux Super
-        "cmd" | "command" | "meta" | "win" | "super" => Ok(Key::Meta),
-        other => Err(format!("Unknown modifier: {other:?}")),
+        _ => Err(format!("Unknown modifier: {}", s)),
     }
 }
-
 /// Map a lowercase key token to an [`enigo::Key`].
 fn parse_key(s: &str) -> Result<Key, String> {
     match s {

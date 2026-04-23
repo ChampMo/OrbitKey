@@ -30,6 +30,7 @@
       {
         "label": "action-ring",
         "title": "",
+        "acceptFirstMouse": true,
         "width": 800,
         "height": 800,
         "resizable": false,

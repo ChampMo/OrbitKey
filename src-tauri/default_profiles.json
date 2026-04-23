@@ -1,0 +1,98 @@
+{
+  "id": "default-profile-global",
+  "name": "Global Productivity",
+  "appMatcher": null,
+  "isDefault": true,
+  "slices": [
+    {
+      "id": "slice-browser",
+      "label": "Web Browser",
+      "icon": "Globe",
+      "color": "#4285f4",
+      "actionType": "launch",
+      "actionData": "https://www.google.com"
+    },
+    {
+      "id": "slice-clipboard-folder",
+      "label": "Clipboard",
+      "icon": "Clipboard",
+      "color": "#10b981",
+      "actionType": "folder",
+      "children": [
+        {
+          "id": "clip-copy",
+          "label": "Copy",
+          "icon": "Copy",
+          "color": "#4285f4",
+          "actionType": "shortcut",
+          "actionData": "cmd+c"
+        },
+        {
+          "id": "clip-paste",
+          "label": "Paste",
+          "icon": "Clipboard",
+          "color": "#10b981",
+          "actionType": "shortcut",
+          "actionData": "cmd+v"
+        },
+        {
+          "id": "clip-undo",
+          "label": "Undo",
+          "icon": "RotateCcw",
+          "color": "#f43f5e",
+          "actionType": "shortcut",
+          "actionData": "cmd+z"
+        }
+      ]
+    },
+    {
+      "id": "slice-screenshot",
+      "label": "Screenshot",
+      "icon": "Camera",
+      "color": "#8b5cf6",
+      "actionType": "shortcut",
+      "actionData": "cmd+shift+4"
+    },
+    {
+      "id": "slice-media-folder",
+      "label": "Media Kit",
+      "icon": "Music",
+      "color": "#ec4899",
+      "actionType": "folder",
+      "children": [
+        {
+          "id": "media-pp",
+          "label": "Play / Pause",
+          "icon": "Play",
+          "color": "#10b981",
+          "actionType": "media",
+          "actionData": "media_play_pause"
+        },
+        {
+          "id": "media-vol-up",
+          "label": "Volume Up",
+          "icon": "Volume2",
+          "color": "#0ea5e9",
+          "actionType": "media",
+          "actionData": "volume_up"
+        }
+      ]
+    },
+    {
+      "id": "slice-system-lock",
+      "label": "Lock Screen",
+      "icon": "Lock",
+      "color": "#64748b",
+      "actionType": "system",
+      "actionData": "sys_lock"
+    },
+    {
+      "id": "slice-macro-work",
+      "label": "Work Mode",
+      "icon": "Zap",
+      "color": "#f59e0b",
+      "actionType": "multi_action",
+      "actionData": "[{\"type\":\"launch\",\"data\":\"https://calendar.google.com\"},{\"type\":\"delay\",\"data\":\"500\"},{\"type\":\"launch\",\"data\":\"https://chat.openai.com\"}]"
+    }
+  ]
+}

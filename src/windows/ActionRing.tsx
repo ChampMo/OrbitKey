@@ -1,20 +1,20 @@
 /**
  * ActionRing.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Perfect Centering & Smart Hybrid Release Mode + Temporary Profile Switch
+ * Perfect Centering & Smart Hybrid Release Mode + Temporary Profile Switch + Folder Chevron
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import * as LucideIcons from "lucide-react";
 
 interface ApiSlice { id: string; label: string; icon?: string; color?: string; actionType: string; actionData?: string | null; scriptArgs?: string[]; children?: ApiSlice[] | null; }
 interface ApiProfile { id: string; name: string; slices: ApiSlice[]; isDefault: boolean; }
-interface AppSettings { globalHotkey: string; startWithOS: boolean; ringScale: number; closeAfterExec: boolean; triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; }
+interface AppSettings { globalHotkey: string; startWithOS: boolean; ringScale: number; closeAfterExec: boolean; triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; theme: "dark" | "light" | "ocean";}
 
 export default function ActionRing() {
-  // 💥 เพิ่ม State เก็บ Profile ทั้งหมด และ Profile ชั่วคราว
   const [allProfiles, setAllProfiles] = useState<ApiProfile[]>([]);
   const [tempProfileId, setTempProfileId] = useState<string | null>(null);
   
@@ -58,7 +58,6 @@ export default function ActionRing() {
     default: animClass = isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95";
   }
 
-  // 💥 โหลดข้อมูลครั้งแรก ให้เก็บลง allProfiles ไว้
   const loadData = async () => {
     try {
       const [profiles, settings] = await Promise.all([
@@ -72,19 +71,14 @@ export default function ActionRing() {
     } catch (err) { console.error(err); }
   };
 
-  // 💥 Effect คำนวณ Slices ที่ต้องแสดงผล (เช็คว่ามีโปรไฟล์ชั่วคราวไหม)
   useEffect(() => {
     if (allProfiles.length === 0) return;
-    
-    // ถ้ามี tempProfileId ให้ใช้อันนั้น ถ้าไม่มีให้ใช้อัน Default
     const active = tempProfileId 
       ? allProfiles.find(p => p.id === tempProfileId) 
       : allProfiles.find(p => p.isDefault);
-      
     setSlices(active?.slices || allProfiles[0].slices);
   }, [allProfiles, tempProfileId]);
 
-  // ─── ฟังก์ชัน Execute ───
   const executeAction = async (mainId: string | null, childId: string | null) => {
     const currentSlices = slicesRef.current;
     const currentConfig = configRef.current as any; 
@@ -102,7 +96,6 @@ export default function ActionRing() {
       const isReleaseMode = currentConfig?.triggerMode === "release" || currentConfig?.trigger_mode === "release";
       const settingClose = currentConfig?.closeAfterExec === true || currentConfig?.close_after_exec === true;
 
-      // 💥 บังคับว่า "ถ้าเป็นโหมดสลับโปรไฟล์ ห้ามปิดวงแหวนเด็ดขาด!"
       const isSwitchProfile = targetSlice.actionType === "switch_profile";
       const shouldClose = !isSwitchProfile && (isReleaseMode || settingClose);
 
@@ -113,15 +106,49 @@ export default function ActionRing() {
         setTimeout(() => { setClickedId(null); }, 150);
       }
       
-      // ส่งไปรันคำสั่งที่ Rust
-      invoke("execute_action", { action: targetSlice }).catch((err) => {
+      let permissionGranted = false;
+      try {
+        permissionGranted = await isPermissionGranted();
+        if (!permissionGranted) {
+          const permission = await requestPermission();
+          permissionGranted = permission === 'granted';
+        }
+      } catch (e) {
+        console.warn("Notification error:", e);
+      }
+
+      const shouldNotify = targetSlice.actionType === "multi_action" || targetSlice.actionType === "script";
+
+      if (permissionGranted && shouldNotify) {
+        sendNotification({
+          title: 'Action Ring',
+          body: `⏳ Starting: ${targetSlice.label}...`
+        });
+      }
+
+      try {
+        await invoke("execute_action", { action: targetSlice });
+        if (permissionGranted && shouldNotify) {
+          sendNotification({
+            title: 'Action Ring',
+            body: `✅ Executed: ${targetSlice.label}`
+          });
+        }
+      } catch (err) {
         console.error("Rust Execute Error:", err);
-      });
+        if (permissionGranted) {
+          sendNotification({
+            title: 'Action Ring Error',
+            body: `❌ Failed: ${targetSlice.label}`
+          });
+        }
+      }
       
     } else if (!targetSlice || (targetSlice.actionType !== "folder" && !mainId)) {
       const isReleaseMode = currentConfig?.triggerMode === "release" || currentConfig?.trigger_mode === "release";
       if (isReleaseMode || !mainId) {
         invoke("hide_action_ring").catch(console.error);
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
   };
@@ -143,8 +170,6 @@ export default function ActionRing() {
       setIsVisible(false);
       setCenter({ x: -1000, y: -1000 }); 
       setHoveredMainId(null); setHoveredChildId(null);
-      
-      // 💥 รีเซ็ตกลับเป็นโปรไฟล์หน้าหลัก เมื่อซ่อนวงแหวน
       setTempProfileId(null); 
     });
 
@@ -156,13 +181,12 @@ export default function ActionRing() {
       }
     });
 
-    // 💥 ดักฟังคำสั่งสลับโปรไฟล์จาก Rust
     const unlistenSwitchProfile = listen<string>("switch_profile", (event) => {
-      setTempProfileId(event.payload); // เปลี่ยนไปใช้โปรไฟล์ใหม่ชั่วคราว
-      setHoveredMainId(null);          // ล้าง Hover เก่าทิ้ง
+      setTempProfileId(event.payload);
+      setHoveredMainId(null);
       setHoveredChildId(null);
       setClickedId(null);
-      setAnimKey(k => k + 1);          // บังคับให้วงแหวนเล่นแอนิเมชันเปิดตัวใหม่ จะได้ดูเนียนตา
+      setAnimKey(k => k + 1);
     });
 
     return () => {
@@ -229,7 +253,7 @@ export default function ActionRing() {
     } else {
       invoke("hide_action_ring").catch(console.error);
     }
-  }, [hoveredMainId, hoveredChildId, slices]); // 💥 เพิ่ม slices ลงใน dependency ด้วยเพื่อให้มันจับอัปเดตใหม่ได้ทัน
+  }, [hoveredMainId, hoveredChildId, slices]);
 
   return (
     <div className="absolute inset-0 w-[800px] h-[800px] select-none overflow-hidden" style={{ background: "transparent" }} onClick={handleClick}>
@@ -267,26 +291,57 @@ export default function ActionRing() {
           const size = isClicked ? NODE_SIZE - (10 * scaleMult) : active ? NODE_SIZE_HOV : NODE_SIZE;
 
           return (
-            <div 
-              key={slice.id} 
-              className="absolute flex items-center justify-center rounded-full shadow-xl"
-              style={{ 
-                width: size, height: size, left: nx, top: ny, 
-                transform: `translate(-50%, -50%) scale(${isVisible ? 1 : animType === 'instant' ? 1 : 0})`,
-                opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
-                backgroundColor: active ? (slice.color || "#6366f1") : "#C8C8D2", 
-                color: active ? "white" : "#18181b",
-                zIndex: active ? 30 : 20,
-                transition: itemTransition,
-                transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms", 
-              }}
-            >
-              <Icon size={active ? 28 * scaleMult : 22 * scaleMult} strokeWidth={active ? 2.5 : 3} />
-              {active && !hoveredChildId && (
-                <div className="absolute top-[-45px] left-1/2 -translate-x-1/2 px-4 py-1.5 bg-white text-zinc-900 font-bold rounded-full shadow-2xl whitespace-nowrap">
-                  {slice.label}
+            <div key={`wrapper-${slice.id}`}>
+              {/* 💥 ลูกศรบอกสถานะว่าเป็น Folder (โผล่มาเฉพาะอันที่เป็น Folder) 💥 */}
+              {slice.actionType === "folder" && (
+                <div
+                  className="absolute pointer-events-none flex items-center justify-center z-20"
+                  style={{
+                    left: center.x + (R_MAIN + 40 * scaleMult) * Math.cos(angle),
+                    top: center.y + (R_MAIN + 40 * scaleMult) * Math.sin(angle),
+                    transform: "translate(-50%, -50%)",
+                    opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
+                    transition: itemTransition,
+                    transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms",
+                  }}
+                >
+                  <LucideIcons.ChevronRight
+                    size={(active ? 24 : 18)  * scaleMult}
+                    strokeWidth={4}
+                    className={`duration-200 ${active ? "text-white drop-shadow-md" : "text-zinc-500/80" }`}
+                    style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }}
+                  />
                 </div>
               )}
+
+              {/* 💥 วงกลมไอคอนหลัก 💥 */}
+              <div 
+                className={`absolute flex items-center justify-center rounded-full shadow-xl ${active ? "ring-4 ring-white/30" : ""}`}
+                style={{ 
+                  width: size, height: size, left: nx, top: ny, 
+                  transform: `translate(-50%, -50%) scale(${isVisible ? 1 : animType === 'instant' ? 1 : 0})`,
+                  opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
+                  backgroundColor: active ? (slice.color || "#6366f1") : "#C8C8D2", 
+                  color: active ? "white" : "#18181b",
+                  zIndex: active ? 30 : 20,
+                  transition: itemTransition,
+                  transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms", 
+                }}
+              >
+                <Icon size={active ? 28 * scaleMult : 22 * scaleMult} strokeWidth={active ? 2.5 : 3} />
+                {/* 💥 ปรับดีไซน์ป้ายชื่อปุ่มหลักให้พรีเมียมขึ้น 💥 */}
+                {active && !hoveredChildId && (
+                  <div 
+                    className="absolute left-1/2 -translate-x-1/2 px-3.5 py-1 bg-zinc-900/90 text-zinc-100 text-[10px] font-extrabold uppercase tracking-widest rounded-full border border-white/10 backdrop-blur-md whitespace-nowrap pointer-events-none"
+                    style={{ 
+                      top: -(48 * scaleMult), // จัดระยะห่างให้สัมพันธ์กับขนาดวงแหวน
+                      boxShadow: slice.color ? `0 6px 20px ${slice.color}40` : '0 6px 20px rgba(0,0,0,0.4)' // เงาเรืองแสงตามสีปุ่ม!
+                    }}
+                  >
+                    {slice.label}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -314,9 +369,18 @@ export default function ActionRing() {
                                 backgroundColor: active ? (child.color || "#6366f1") : "#E4E4EB", color: active ? "white" : "#3f3f46" }}>
                     <Icon size={active ? 26 * scaleMult : 20 * scaleMult} strokeWidth={active ? 2.5 : 3} />
                   </div>
+                  {/* 💥 ปรับดีไซน์ป้ายชื่อปุ่มในโฟลเดอร์ให้เข้าคู่กัน 💥 */}
                   {active && (
-                    <div className="absolute px-3 py-1 bg-white text-zinc-900 font-bold rounded-full shadow-2xl whitespace-nowrap"
-                         style={{ left: center.x + (R_OUTER + 55 * scaleMult) * Math.cos(angle), top: center.y + (R_OUTER + 55 * scaleMult) * Math.sin(angle), transform: "translate(-50%, -50%)", fontSize: `${10 * scaleMult}px` }}>
+                    <div 
+                      className="absolute px-3 py-1 bg-zinc-900/90 text-zinc-100 font-extrabold uppercase tracking-widest rounded-full border border-white/10 backdrop-blur-md whitespace-nowrap pointer-events-none"
+                      style={{ 
+                        left: center.x + (R_OUTER + 65 * scaleMult) * Math.cos(angle), 
+                        top: center.y + (R_OUTER + 55 * scaleMult) * Math.sin(angle), 
+                        transform: "translate(-50%, -50%)", 
+                        fontSize: `${9 * scaleMult}px`, // ปรับขนาดฟอนต์ให้เล็กและเรียบหรูขึ้น
+                        boxShadow: child.color ? `0 6px 20px ${child.color}40` : '0 6px 20px rgba(0,0,0,0.4)'
+                      }}
+                    >
                       {child.label}
                     </div>
                   )}

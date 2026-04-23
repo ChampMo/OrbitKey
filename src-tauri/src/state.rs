@@ -56,6 +56,12 @@ pub struct AppSettings {
     pub anim_speed: String,
     pub deadzone: i32,
     pub center_action: String,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "dark".to_string()
 }
 
 // ตั้งค่าเริ่มต้น (Default) เผื่อว่าแอปเปิดครั้งแรกแล้วยังไม่เคยตั้งค่า
@@ -70,6 +76,7 @@ impl Default for AppSettings {
             anim_speed: "spring".to_string(),
             deadzone: 30,
             center_action: "close".to_string(),
+            theme: "dark".to_string(),
         }
     }
 }

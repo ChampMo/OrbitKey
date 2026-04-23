@@ -137,6 +137,8 @@ import {
   Save,
   LogOut,
   LogIn,
+  Undo2, 
+  Redo2
 } from "lucide-react";
 
 export const ICON_MAP: Record<string, any> = {
@@ -267,6 +269,8 @@ export const ICON_MAP: Record<string, any> = {
   Save,
   LogOut,
   LogIn,
+  Undo2,
+  Redo2
 };
 
 export const ICON_LIST = Object.keys(ICON_MAP);

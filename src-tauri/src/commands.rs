@@ -8,6 +8,7 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
 use tauri::Emitter;
 use serde::Deserialize;
+use std::fs;
 
 #[derive(Deserialize)]
 struct MacroStep {
@@ -17,7 +18,11 @@ struct MacroStep {
 }
 #[tauri::command]
 pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
-    window_manager::hide_action_ring(&app).map_err(|e| e.to_string())
+    // 💥 เติม ? ไว้ท้ายสุดเพื่อให้มันส่ง Error ออกไปถ้าซ่อนหน้าต่างไม่สำเร็จ
+    window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
+
+    // 💥 ต้องมีบรรทัดนี้ปิดท้าย เพื่อบอกว่าฟังก์ชันทำงานสำเร็จ (คืนค่า Ok)
+    Ok(()) 
 }
 
 #[tauri::command]
@@ -130,9 +135,27 @@ pub async fn execute_action(_app: AppHandle, action: ActionSlice) -> Result<(), 
     result
 }
 
+
+
 #[tauri::command]
-pub fn get_profiles(app: AppHandle) -> Result<Vec<Profile>, String> {
-    storage::load_profiles(&app)
+pub fn get_profiles(app: AppHandle) -> Vec<Profile> { // 💥 เปลี่ยนจาก ApiProfile เป็น Profile
+    let config_path = app.path().app_config_dir().unwrap().join("profiles.json");
+
+    if config_path.exists() {
+        let data = std::fs::read_to_string(config_path).unwrap_or_else(|_| "[]".to_string());
+        serde_json::from_str(&data).unwrap_or_else(|_| vec![])
+    } else {
+        let default_data = include_str!("../default_profiles.json");
+        
+        // 💥 ตรงนี้ก็ต้องเปลี่ยนเป็น Profile ด้วย
+        match serde_json::from_str::<Vec<Profile>>(default_data) {
+            Ok(profiles) => profiles,
+            Err(e) => {
+                println!("Error parsing default JSON: {}", e);
+                vec![]
+            }
+        }
+    }
 }
 
 #[tauri::command]
