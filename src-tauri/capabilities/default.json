@@ -36,6 +36,12 @@
     "notification:default",
     "notification:allow-is-permission-granted",
     "notification:allow-request-permission",
-    "notification:allow-notify"
+    "notification:allow-notify",
+    "dialog:allow-message",
+    "autostart:default",
+    "shell:allow-open",
+    "dialog:default",
+    "dialog:allow-ask",
+    "dialog:allow-confirm"
   ]
 }

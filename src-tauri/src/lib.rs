@@ -9,6 +9,8 @@ mod state;
 mod storage;
 mod window_manager;
 
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -25,6 +27,18 @@ pub fn run() {
         .manage(state::AppState::default())
         .setup(|app| {
             // ✅ 1. ตั้งค่าเป็น Accessory (แอปเบื้องหลัง)
+            let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+            if !config_dir.exists() {
+                let _ = std::fs::create_dir_all(&config_dir);
+            }
+
+            let config_path = config_dir.join("profiles.json");
+            // ถ้าเข้าแอปครั้งแรก (ยังไม่มีไฟล์) ให้เอาค่าจากไฟล์ default ไปเขียนใส่
+            if !config_path.exists() {
+                let _ = std::fs::write(config_path, commands::DEFAULT_PROFILES_JSON);
+                println!("[action-ring] Initialized default profiles.");
+            }
+
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -58,6 +72,7 @@ pub fn run() {
             commands::factory_reset,
             commands::get_installed_apps,
             commands::show_control_panel,
+            commands::get_default_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

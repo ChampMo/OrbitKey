@@ -207,6 +207,12 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
     result
 }
 
+pub const DEFAULT_PROFILES_JSON: &str = include_str!("../default_profiles.json");
+
+#[tauri::command]
+pub fn get_default_config() -> String {
+    DEFAULT_PROFILES_JSON.to_string()
+}
 
 
 #[tauri::command]
@@ -215,7 +221,10 @@ pub fn get_profiles(app: AppHandle) -> Vec<Profile> { // 💥 เปลี่ย
 
     if config_path.exists() {
         let data = std::fs::read_to_string(config_path).unwrap_or_else(|_| "[]".to_string());
-        serde_json::from_str(&data).unwrap_or_else(|_| vec![])
+        serde_json::from_str::<Vec<Profile>>(&data).unwrap_or_else(|e| {
+            println!("Profile JSON Error: {}", e);
+            vec![] // ถ้าไฟล์เสีย ให้ส่งลิสต์ว่างกลับไป ดีกว่าจอขาวครับ
+        })
     } else {
         let default_data = include_str!("../default_profiles.json");
         
@@ -418,21 +427,14 @@ pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn factory_reset(app: AppHandle) -> Result<(), String> {
-    use crate::state::{Profile, AppSettings};
-
-    // 1. สร้าง Profile เริ่มต้นแบบ Manual (ปลอดภัยกว่า)
-    let default_profiles = vec![Profile {
-        id: "default_profile_1".to_string(),
-        name: "Default".to_string(),
-        app_matcher: None,
-        is_default: true,
-        slices: vec![], // วงแหวนว่างเปล่า
-    }];
+    use crate::state::AppSettings;
     
-    // 2. โหลด Settings ค่าเริ่มต้น
+    // 💥 ใช้ค่าจาก constant ที่เราประกาศไว้ด้านบนไฟล์
+    let default_profiles: Vec<Profile> = serde_json::from_str(DEFAULT_PROFILES_JSON)
+        .map_err(|e| format!("Default JSON error: {}", e))?;
+    
     let default_settings = AppSettings::default(); 
     
-    // 3. เขียนทับไฟล์เดิมทั้งหมด
     storage::write_profiles(&app, &default_profiles)?;
     storage::write_settings(&app, &default_settings)?;
     
