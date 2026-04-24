@@ -1,5 +1,5 @@
 
-<img src="./docs/preview.png" width="600">
+<img src="./docs/icon.png" width="600">
 
 # 🚀 OrbitKey
 
