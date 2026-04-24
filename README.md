@@ -1,7 +1,17 @@
 
-<img src="./docs/icon.png" width="100">
+<table>
+  <tr>
+    <td>
+      <img src="./docs/icon.png" width="80" style="border-radius: 20%">
+    </td>
+    <td style="padding-left: 20px">
+      <h1>OrbitKey</h1>
+      <p><i>High-speed Command Hub for Power Users.</i></p>
+    </td>
+  </tr>
+</table>
 
-# 🚀 OrbitKey
+<br />
 
 **High-speed Command Hub for Power Users.** *Summon a beautiful, adaptive radial menu at your cursor and execute macros with zero friction.*
 
@@ -13,6 +23,10 @@
 **OrbitKey** is a productivity-enhancing desktop application inspired by [Kando](https://github.com/kando-menu/kando) and the Logitech Action Ring. It allows you to run scripts, launch apps, or trigger keyboard shortcuts via a fluid radial menu.
 
 ---
+
+<p align="center">
+  <img src="./docs/home.png" width="800" alt="OrbitKey Interface Showcase">
+</p>
 
 ## ✨ Key Highlights
 
@@ -70,4 +84,4 @@ OrbitKey/
 
 ---
 
-Created by ChampMo
+Created for learning by ChampMo
