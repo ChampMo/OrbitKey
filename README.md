@@ -1,4 +1,12 @@
-# 🚀 OrbitKey
+Your English version of the README.md file is ready.
+
+[file-tag: orbitkey-readme-en-md]
+
+Python
+import os
+
+# Define the content for the English README.md
+readme_en_content = """# 🚀 OrbitKey
 
 **High-speed Command Hub for Power Users.** *Summon a beautiful, adaptive radial menu at your cursor and execute macros with zero friction.*
 
@@ -7,30 +15,30 @@
 [![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**OrbitKey** คือแอปพลิเคชันเพิ่มประสิทธิภาพการทำงาน (Productivity Tool) ที่ได้รับแรงบันดาลใจจาก [Kando](https://github.com/kando-menu/kando) และ Logitech Action Ring ช่วยให้คุณรัน Scripts, เปิดแอป หรือส่งคำสั่ง Keyboard Shortcut ผ่านเมนูวงแหวนที่ไหลลื่นที่สุด
+**OrbitKey** is a productivity-enhancing desktop application inspired by [Kando](https://github.com/kando-menu/kando) and the Logitech Action Ring. It allows you to run scripts, launch apps, or trigger keyboard shortcuts via a fluid radial menu.
 
 ---
 
 ## ✨ Key Highlights
 
-* **⚡ Lightning Fast:** พัฒนาด้วย Rust (Tauri v2) กินทรัพยากรเครื่องน้อยมาก และเปิดขึ้นมาทันใจด้วย Global Hotkey
-* **🎨 Adaptive Themes:** มาพร้อมระบบธีมในตัว (Cyber Dark, Neon Matrix, Peach Milk, etc.) ที่เปลี่ยนสีสันได้ทั้งแอป
-* **📂 Smart Folders:** ระบบเมนูย่อยแบบ "หุบ-กาง" ที่ใช้ Spring Animation สมูทๆ ไม่รกสายตา
-* **📐 Radial Precision:** ใช้คณิตศาสตร์วิถีโค้งเพื่อให้คุณเลือกคำสั่งได้แม่นยำผ่านทิศทางเมาส์ (Wedge-based selection)
-* **⚙️ Control Panel:** จัดการโปรไฟล์และคำสั่งต่างๆ ได้ง่ายผ่านหน้าต่างแยกส่วนที่ออกแบบมาอย่างสวยงาม
-* **📦 Auto-Release:** ระบบ GitHub Actions อัตโนมัติ Build ไฟล์ติดตั้ง (.exe, .dmg) ให้ทันทีเมื่อมีการติด Tag เวอร์ชัน
+* **⚡ Lightning Fast:** Built with Rust (Tauri v2) for minimal resource footprint and instant summoning via global hotkeys.
+* **🎨 Adaptive Themes:** Features built-in themes (Cyber Dark, Neon Matrix, Peach Milk, etc.) that customize the entire application's aesthetic.
+* **📂 Smart Folders:** Nested menu system with smooth "Expand/Collapse" spring animations for a clutter-free experience.
+* **📐 Radial Precision:** Leverages directional vector math to ensure precise command selection via mouse angle (Wedge-based selection).
+* **⚙️ Control Panel:** Easily manage profiles and commands through a beautifully designed, separate configuration window.
+* **📦 Auto-Release:** Integrated GitHub Actions for automatic builds of installers (.exe, .dmg) upon version tagging.
 
 ---
 
 ## 🛠️ The "Secret Sauce" (Radial Math)
 
-เพื่อให้การเลือกคำสั่งรวดเร็วระดับสัญชาตญาณ OrbitKey ใช้การคำนวณเวกเตอร์ 2 มิติจากจุดศูนย์กลาง:
+To achieve instinct-level speed, OrbitKey calculates 2D vectors from the center point:
 
-1.  **Angle Calculation:** แปลงพิกัดเมาส์ $(x, y)$ เป็นองศาโดยใช้:
-    $$\theta = \text{atan2}(\Delta y, \Delta x)$$
-2.  **Selection Zone:** แบ่งพื้นที่วงกลมเป็นส่วนๆ (Wedges) ตามจำนวนคำสั่ง ทำให้ไม่ต้องเล็งคลิกที่ไอคอน แต่สะบัดเมาส์ไปตามทิศทางก็เลือกได้ทันที
-3.  **Deadzone Protection:** ป้องกันการลั่นด้วยการเช็คระยะห่าง (Euclidean distance) ถ้าเมาส์ขยับไม่เกิน $R_{dead}$ จะไม่ทำงาน:
-    $$d = \sqrt{(\Delta x)^2 + (\Delta y)^2}$$
+1.  **Angle Calculation:** Converts mouse coordinates $(x, y)$ into angles using:
+    $$\\theta = \\text{atan2}(\\Delta y, \\Delta x)$$
+2.  **Selection Zone:** Divides the $360^\circ$ space into "Wedges" based on the number of slices. This allows selection via direction rather than precise icon clicking.
+3.  **Deadzone Protection:** Prevents accidental triggers by checking Euclidean distance. If the movement is within $R_{dead}$, no action is taken:
+    $$d = \\sqrt{(\\Delta x)^2 + (\\Delta y)^2}$$
 
 ---
 
@@ -52,17 +60,18 @@ OrbitKey/
 ---
 
 ## 🗺️ Roadmap
-[x] Phase 1: ระบบพื้นฐาน Tauri v2 + Global Hotkey
 
-[x] Phase 2: เมนูวงแหวน SVG และระบบ Theme
+[x] Phase 1: Project Foundation (Tauri v2 + Global Hotkey)
 
-[x] Phase 3: แอนิเมชัน Folder หุบ-กาง และ Spring Motion
+[x] Phase 2: Radial SVG UI and Theme System
 
-[x] Phase 4: ระบบ Build อัตโนมัติผ่าน GitHub Actions
+[x] Phase 3: Folder Expansion & Spring Motion Animations
 
-[ ] Phase 5: ระบบ "Auto-Switch Profile" ตามแอปที่เปิดอยู่ (Active Window Tracking)
+[x] Phase 4: Automated CI/CD via GitHub Actions
 
-[ ] Phase 6: ระบบ "Macro Recording" บันทึกการกดปุ่มแบบลำดับชั้น
+[ ] Phase 5: Auto-Switch Profile (Active Window Tracking)
+
+[ ] Phase 6: Advanced Macro Recording (Sequential Input)
 
 ---
 
