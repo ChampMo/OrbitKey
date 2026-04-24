@@ -1,6 +1,6 @@
   [{
     "id": "default-profile-global",
-    "name": "Global Productivity",
+    "name": "Global",
     "appMatcher": null,
     "isDefault": true,
     "slices": [

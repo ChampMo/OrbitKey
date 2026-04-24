@@ -3,7 +3,6 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   Settings,
   MousePointer2,
@@ -25,7 +24,7 @@ import {
 import SettingsPanel from "./SettingsPanel";
 import ProTipModal from "./components/ProTipModal";
 import SliceEditor from "./components/SliceEditor";
-import { ICON_MAP, ICON_LIST } from "./IconMap";
+import { ICON_MAP } from "./IconMap";
 
 // 💥 นำเข้า THEMES จากไฟล์ Theme.tsx 💥
 import { ThemeId, THEMES } from "./Theme"; 
@@ -1028,9 +1027,12 @@ export default function ControlPanel() {
               </button>
               <button 
                 onClick={handleImport} 
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-left transition-colors ${activeTheme.isDark ? 'hover:bg-white/10 text-indigo-400' : 'hover:bg-black/5 text-indigo-600'}`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-bold rounded-lg text-left transition-colors 
+                  ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'} 
+                  ${activeTheme.accentText}`} // 💥 ใช้สีตามธีมตรงนี้
               >
-                <Download size={14} className="opacity-60" /> Import Profile...
+                <Download size={14} className="opacity-60" /> 
+                Import Profile
               </button>
             </div>
 

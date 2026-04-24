@@ -1,7 +1,7 @@
 /**
  * AppearanceSettings.tsx — UI for Theme, Scale, and Animation settings
  */
-import React from "react";
+
 import { Monitor, Palette, Check } from "lucide-react";
 import { AppSettings } from "../SettingsPanel";
 import { THEME_LIST, ThemeStyle } from "../Theme";

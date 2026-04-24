@@ -2,7 +2,6 @@ import { useState } from "react";
 import { HardDrive, Power, Download, Upload, AlertTriangle, CheckCircle2, X, RotateCcw } from "lucide-react";
 import { AppSettings } from "../SettingsPanel";
 import { invoke } from "@tauri-apps/api/core";
-import { message } from "@tauri-apps/plugin-dialog"; // ใช้แค่แจ้งเตือนตอนจบ
 import { ThemeStyle } from "../Theme";
 
 export default function SystemDataSettings({ config, setConfig, activeTheme }: { config: AppSettings, setConfig: (c: AppSettings) => void, activeTheme: ThemeStyle }) {
