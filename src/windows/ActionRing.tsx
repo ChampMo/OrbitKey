@@ -4,7 +4,7 @@
  * Master Version: Perfect Centering + Folder Expand/Collapse + Adaptive Themes
  */
 
-import { useCallback, useEffect, useState, useRef, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import { invoke } from "@tauri-apps/api/core";
 // 💥 จุดที่ทำให้แอปค้างคือบรรทัดนี้ครับ แก้ให้เป็น @tauri-apps/api/event เรียบร้อยแล้ว! 💥
 import { listen } from "@tauri-apps/api/event"; 

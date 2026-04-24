@@ -1,0 +1,54 @@
+name: "Publish Release"
+
+on:
+  push:
+    tags:
+      - 'v0.1.0'
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest" # สำหรับ Mac
+            args: "--target aarch64-apple-darwin"
+          - platform: "windows-latest" # สำหรับ Windows
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # ตัวเลือกสำหรับ Mac Silicon
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: install frontend dependencies
+        run: npm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__ # จะดึงเวอร์ชันจาก package.json อัตโนมัติ
+          releaseName: "OrbitKey v__VERSION__"
+          releaseBody: "See the assets below to download the latest version of OrbitKey."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
