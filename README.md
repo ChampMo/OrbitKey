@@ -1,12 +1,7 @@
-Your English version of the README.md file is ready.
 
-[file-tag: orbitkey-readme-en-md]
+<img src="./docs/preview.png" width="600">
 
-Python
-import os
-
-# Define the content for the English README.md
-readme_en_content = """# 🚀 OrbitKey
+# 🚀 OrbitKey
 
 **High-speed Command Hub for Power Users.** *Summon a beautiful, adaptive radial menu at your cursor and execute macros with zero friction.*
 
