@@ -29,7 +29,7 @@ import { check } from '@tauri-apps/plugin-updater';
 // 💥 นำเข้า THEMES จากไฟล์ Theme.tsx 💥
 import UpdateModal from './components/UpdateModal';
 import { ThemeId, THEMES } from "./Theme";
-
+import Alert from "./components/Alert";
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 export type ActionTypeValue = 
   | "shortcut" 
@@ -165,6 +165,8 @@ export default function ControlPanel() {
       ?.children?.some((c) => c.id === editingId)
   );
 
+  
+
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autoSaveToBackend = useCallback((newProfiles: ApiProfile[], isHistoryAction = false) => {
@@ -203,6 +205,13 @@ export default function ControlPanel() {
     setFuture(newFuture);
     autoSaveToBackend(nextState, true);
   }, [future, profiles, autoSaveToBackend]);
+
+  const [alertConfig, setAlertConfig] = useState({
+      isOpen: false,
+      title: '',
+      message: '',
+      type: 'error' as 'error' | 'success' | 'info'
+    });
 
   useEffect(() => {
     Promise.all([
@@ -528,9 +537,15 @@ export default function ControlPanel() {
 
   function handleDeleteProfile() {
     if (profiles.length <= 1) {
-      alert("Cannot delete the last profile.");
+      setAlertConfig({
+        isOpen: true,
+        title: "Action Restricted",
+        message: "You cannot delete the last profile. OrbitKey needs at least one profile to stay in orbit! 🛰️",
+        type: 'error'
+      });
       return;
     }
+
     setConfirmModal({
       title: "Delete Profile",
       message: `Are you sure you want to delete "${activeProfile?.name}"? All slices inside it will be lost forever.`,
@@ -1280,6 +1295,14 @@ export default function ControlPanel() {
         update={pendingUpdate} 
         onClose={() => setPendingUpdate(null)} 
         currentTheme={activeTheme} 
+      />
+      <Alert 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        activeTheme={activeTheme}
+        onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
       />
     </div>
   );

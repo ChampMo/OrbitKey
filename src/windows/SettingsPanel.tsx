@@ -7,7 +7,8 @@ import AppearanceSettings from "./SettingMenu/AppearanceSettings";
 import SystemDataSettings from "./SettingMenu/SystemDataSettings";
 import { ThemeId, THEMES, ThemeStyle } from "./Theme";
 import Support from './components/Support';
-import { check } from '@tauri-apps/plugin-updater';
+
+
 
 export interface AppSettings {
   globalHotkey: string;
@@ -29,7 +30,11 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isBugModalOpen, setIsBugModalOpen] = useState(false);
-  const [availableUpdate, setAvailableUpdate] = useState<any>(null);
+
+  
+
+
+
   useEffect(() => {
     // โหลดซ้ำอีกครั้งเพื่อความชัวร์ว่าข้อมูลล่าสุด
     invoke<AppSettings>("get_settings")
@@ -43,32 +48,9 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
       });
   }, []);
 
-  useEffect(() => {
-    const autoCheck = async () => {
-      try {
-        const update = await check();
-        if (update) {
-          setAvailableUpdate(update);
-        }
-      } catch (e) {
-        console.error("Update check failed:", e);
-      }
-    };
-    autoCheck();
-  }, []);
 
-  const manualCheck = async () => {
-    try {
-      const update = await check();
-      if (update) {
-        setAvailableUpdate(update); // 💥 เช็คเจออัปเดต ก็อัปเดตใส่ตัวแปรเดิมเลย
-      } else {
-        alert("OrbitKey is already up to date! 🛰️");
-      }
-    } catch (e) {
-      alert("Error checking for updates. Please check your internet connection.");
-    }
-  };
+
+
 
   const setConfig = useCallback((newConfig: AppSettings) => {
     setConfigState(newConfig);
@@ -150,9 +132,7 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
             <SystemDataSettings 
               config={config}
               setConfig={setConfig} 
-              activeTheme={currentTheme} 
-              availableUpdate={availableUpdate}
-              manualCheck={manualCheck}/>
+              activeTheme={currentTheme} />
           </div>
           <div className="space-y-6">
             <AppearanceSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
@@ -170,6 +150,7 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         onClose={() => setIsSupportOpen(false)} 
         currentTheme={currentTheme} 
       />
+      
     </div>
     
   );

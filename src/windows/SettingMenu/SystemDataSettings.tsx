@@ -1,28 +1,47 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HardDrive, Power, Download, Loader2, Upload, AlertTriangle, CheckCircle2, X, RotateCcw, RefreshCw } from "lucide-react"; // เพิ่ม RefreshCw
 import { AppSettings } from "../SettingsPanel";
 import { invoke } from "@tauri-apps/api/core";
 import { ThemeStyle } from "../Theme";
 import { relaunch } from '@tauri-apps/plugin-process';
+import Alert from "../components/Alert";
+import { check } from '@tauri-apps/plugin-updater';
 
 // 💥 1. เพิ่ม Props สำหรับระบบ Update เข้ามาตรงนี้
 export default function SystemDataSettings({ 
-  config, setConfig, activeTheme, 
-  availableUpdate, manualCheck 
+  config, setConfig, activeTheme
 }: { 
   config: AppSettings, 
   setConfig: (c: AppSettings) => void, 
   activeTheme: ThemeStyle,
-  availableUpdate: any,
-  manualCheck: () => Promise<void>
 }) {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [availableUpdate, setAvailableUpdate] = useState<any>(null);
+
+  useEffect(() => {
+    const autoCheck = async () => {
+      try {
+        const update = await check();
+        if (update) {
+          setAvailableUpdate(update);
+        }
+      } catch (e) {
+        console.error("Update check failed:", e);
+      }
+    };
+    autoCheck();
+  }, []);
+
+
+
   const showStatus = (msg: string) => {
     setStatusMsg(msg);
     setTimeout(() => setStatusMsg(null), 3000);
   };
+
 
   const handleExportAll = async () => {
     try {
@@ -47,15 +66,55 @@ export default function SystemDataSettings({
     } catch (err) { console.error("Reset failed:", err); }
   };
 
-    const handleUpdate = async () => {
+  const [alertConfig, setAlertConfig] = useState<{isOpen: boolean, title?: string, message: string, type: 'error' | 'success' | 'info'}>({
+    isOpen: false,
+    message: '',
+    type: 'info'
+  });
+
+  const handleUpdate = async () => {
     try {
-      setIsUpdating(true); // เปลี่ยนปุ่มเป็นสถานะกำลังโหลด
-      await availableUpdate.downloadAndInstall(); // ใช้ availableUpdate แทน pendingUpdate
+      setIsUpdating(true);
+      await availableUpdate.downloadAndInstall();
       await relaunch();
     } catch (e) {
       console.error(e);
       setIsUpdating(false);
-      alert("Failed to update. Please try again.");
+      setAlertConfig({
+        isOpen: true,
+        title: "Update Failed",
+        message: "Failed to download or install the update. Please check your connection and try again.",
+        type: 'error'
+      });
+    }
+  };
+
+  const manualCheck = async () => {
+    try {
+      const update = await check();
+      if (update) {
+        setAvailableUpdate(update);
+        setAlertConfig({
+          isOpen: true,
+          title: "Update Found!",
+          message: `New version v${update.version} is ready to fly. Check it out in System & Data section.`,
+          type: 'success'
+        });
+      } else {
+        setAlertConfig({
+          isOpen: true,
+          title: "Up to Date",
+          message: "OrbitKey is already at the latest version. You're good to go! 🛰️",
+          type: 'success'
+        });
+      }
+    } catch (e) {
+      setAlertConfig({
+        isOpen: true,
+        title: "Check Failed",
+        message: "Oops! We couldn't reach the update server. Please check your internet.",
+        type: 'error'
+      });
     }
   };
 
@@ -196,6 +255,14 @@ export default function SystemDataSettings({
         </div>
         <button type="button" onClick={() => setShowResetConfirm(true)} className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded-xl text-sm font-bold text-red-500 transition-all active:scale-[0.98]"><AlertTriangle size={16} /> Factory Reset</button>
       </div>
+      <Alert 
+         isOpen={alertConfig.isOpen}
+         title={alertConfig.title}
+         message={alertConfig.message}
+         type={alertConfig.type}
+         activeTheme={activeTheme}
+         onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+       />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X, Send, AlertCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core'; // เพิ่มตัวนี้เพื่อเรียกใช้ Rust
+import Alert from "../components/Alert";
+
 
 interface ReportBugProps {
   isOpen: boolean;
@@ -13,15 +15,22 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
 
+  const [alertConfig, setAlertConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'error' as 'error' | 'success' | 'info'
+  });
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !description) return;
+
     setStatus('sending');
 
     try {
-      // 🚀 เรียกคำสั่ง Rust backend ที่เราเขียนไว้
-      // ต้องมั่นใจว่าชื่อฟังก์ชันตรงกับ #[tauri::command] ใน Rust (snake_case)
       await invoke('send_bug_report', { 
         userEmail: email, 
         description: description 
@@ -29,18 +38,23 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
 
       setStatus('success');
       
-      // หน่วงเวลา 2 วินาทีเพื่อให้ User เห็น Success Message ก่อนปิด
       setTimeout(() => {
         onClose();
         setStatus('idle');
         setEmail('');
         setDescription('');
-      }, 2000);
+      }, 2500);
 
     } catch (error) {
       console.error("Bug Report Error:", error);
-      alert(`Failed to send report: ${error}`);
       setStatus('idle');
+      
+      setAlertConfig({
+        isOpen: true,
+        title: "Submission Failed",
+        message: String(error) || "Could not send report.",
+        type: 'error'
+      });
     }
   };
 
@@ -49,14 +63,14 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
       <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden transition-all duration-500 ${currentTheme.panel} ${currentTheme.border}`}>
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
+        <div className={`${currentTheme.isDark ? 'bg-white/5' : 'bg-black/5'} flex items-center justify-between px-6 py-4 border-b border-white/5 `}>
           <div className="flex items-center gap-2">
             <AlertCircle size={18} className="text-red-400" />
             <h3 className="font-bold tracking-tight">Report a Bug</h3>
           </div>
           <button 
             onClick={onClose} 
-            className="text-zinc-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-lg"
+            className="text-zinc-500 hover:text-current transition-colors p-1 hover:bg-white/10 rounded-full"
           >
             <X size={20} />
           </button>
@@ -101,6 +115,14 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
                 }`}>
                 <div className="h-full bg-green-500 animate-[progress_2s_ease-in-out]" style={{ width: '100%' }} />
                 </div>
+                <Alert 
+                  isOpen={alertConfig.isOpen}
+                  title={alertConfig.title}
+                  message={alertConfig.message}
+                  type={alertConfig.type}
+                  activeTheme={currentTheme}
+                  onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+                />
                 
                 <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes progress {
@@ -121,7 +143,7 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your.email@example.com"
-                  className={`w-full px-4 py-2.5 rounded-xl border bg-black/20 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all ${currentTheme.border} text-sm`}
+                  className={`${currentTheme.isDark ? 'bg-black/20' : 'bg-white/50'} w-full px-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all ${currentTheme.border} text-sm`}
                 />
               </div>
               
@@ -135,7 +157,7 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Tell me what went wrong..."
-                  className={`w-full px-4 py-2.5 rounded-xl border bg-black/20 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all resize-none ${currentTheme.border} text-sm`}
+                  className={`${currentTheme.isDark ? 'bg-black/20' : 'bg-white/50'} w-full px-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all resize-none ${currentTheme.border} text-sm`}
                 />
               </div>
 
@@ -160,6 +182,16 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
           )}
         </form>
       </div>
+      <Alert 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        activeTheme={currentTheme}
+        onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+      />
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }` }} />
     </div>
   );
 };

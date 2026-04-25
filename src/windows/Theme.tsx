@@ -56,7 +56,7 @@ export const THEMES: Record<ThemeId, ThemeStyle> = {
   // ☀️ Light Themes
   light: { 
     id: "light", label: "Cloud Light", isDark: false, 
-    bg: "bg-sky-50", panel: "bg-white", text: "text-sky-950", border: "border-sky-200/60",
+    bg: "bg-sky-50", panel: "bg-sky-100", text: "text-sky-950", border: "border-sky-200/60",
     previewColor: "bg-white border-sky-300",
     accentColor: "#0ea5e9", 
     accentText: "text-sky-600",
@@ -66,7 +66,7 @@ export const THEMES: Record<ThemeId, ThemeStyle> = {
   },
   peach: { 
     id: "peach", label: "Peach Milk", isDark: false, 
-    bg: "bg-orange-50", panel: "bg-orange-100/60", text: "text-orange-950", border: "border-orange-200",
+    bg: "bg-orange-50", panel: "bg-orange-100", text: "text-orange-950", border: "border-orange-200",
     previewColor: "bg-orange-50 border-orange-200",
     accentColor: "#f97316", 
     accentText: "text-orange-600",
@@ -76,7 +76,7 @@ export const THEMES: Record<ThemeId, ThemeStyle> = {
   },
   mint: { 
     id: "mint", label: "Mint Breeze", isDark: false, 
-    bg: "bg-teal-50", panel: "bg-teal-100/60", text: "text-teal-950", border: "border-teal-200",
+    bg: "bg-teal-50", panel: "bg-teal-100", text: "text-teal-950", border: "border-teal-200",
     previewColor: "bg-teal-50 border-teal-200",
     accentColor: "#10b981", 
     accentText: "text-teal-600",

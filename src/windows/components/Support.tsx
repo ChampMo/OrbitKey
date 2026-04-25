@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Heart, Coffee, QrCode, ExternalLink } from 'lucide-react';
+import { X, Heart, Coffee, QrCode, ExternalLink, SearchCode } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell'; // ใช้สำหรับเปิดเว็บ BMAC
 import buymeacoffee from "../../assets/buymeacoffee-qr.png";
 import promptpay from "../../assets/promptpay-qr.jpg";
@@ -11,13 +11,34 @@ interface SupportProps {
 }
 
 const Support: React.FC<SupportProps> = ({ isOpen, onClose, currentTheme }) => {
-  const [activeTab, setActiveTab] = useState<'promptpay' | 'bmac'>('promptpay');
-
+    const [activeTab, setActiveTab] = useState<'promptpay' | 'bmac'>('promptpay');
+    const [expandedImg, setExpandedImg] = useState<string | null>(null);
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className={`w-full max-w-sm rounded-3xl border shadow-2xl overflow-hidden transition-all duration-500 ${currentTheme.panel} ${currentTheme.border}`}>
+      {/* 💥 ส่วน Overlay สำหรับขยายรูป */}
+        {expandedImg && (
+        <div 
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md cursor-zoom-out animate-in fade-in duration-200"
+            onClick={() => setExpandedImg(null)}
+        >
+            <div className="relative flex flex-col items-center gap-4">
+            
+            {/* 💥 แก้ตรงนี้: เอาความกว้าง/สูงตายตัวออก แล้วใส่ข้อจำกัดที่ตัวรูปแทน */}
+            <img 
+                src={expandedImg} 
+                className="max-w-[90vw] max-h-[80vh] w-auto h-auto object-cover rounded-[2.5rem] shadow-2xl animate-in zoom-in-95 duration-200 border-4 border-white/10"
+                alt="Expanded QR"
+            />
+
+            <p className="text-white/60 text-[10px] font-black uppercase tracking-widest bg-black/40 px-6 py-2 rounded-full flex items-center gap-2 border border-white/5">
+                <X size={14} /> Click anywhere to shrink
+            </p>
+            </div>
+        </div>
+        )}
+      <div className={`relative w-full max-w-sm rounded-3xl border shadow-2xl overflow-hidden transition-all duration-500 ${currentTheme.panel} ${currentTheme.border}`}>
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/5">
@@ -69,15 +90,14 @@ const Support: React.FC<SupportProps> = ({ isOpen, onClose, currentTheme }) => {
               </div>
               
               {/* กรอบรูป QR Code PromptPay */}
-              <div className=" bg-white rounded-2xl shadow-xl w-80 flex items-center justify-center">
-                {/* 💥 แชมป์เอารูป QR โอนเงินของตัวเองมาใส่ตรงนี้ 💥 */}
-                <img 
-                  src={promptpay} // เอาไฟล์รูปไปวางในโฟลเดอร์ public/
-                  alt="PromptPay QR" 
-                  className="w-full h-full object-contain rounded-2xl"
-                  // ถ้ายังไม่มีรูป ให้คอมเมนต์ img ทิ้ง แล้วใช้ div ข้างล่างแทนชั่วคราว
-                />
-                {/* <span className="text-zinc-400 text-xs font-bold">Your QR Here</span> */}
+              <div 
+                className={`${currentTheme.border} group relative rounded-2xl shadow-xl w-80 flex items-center justify-center border cursor-zoom-in hover:scale-105 transition-transform`}
+                onClick={() => setExpandedImg(promptpay)}
+              >
+                <img src={promptpay} alt="PromptPay QR" className="w-full h-full object-contain rounded-xl" />
+                <div className="absolute bottom-4 right-4 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg p-1 flex items-center justify-center">
+                  <SearchCode className="text-white" size={24} />
+                </div>
               </div>
             </div>
           )}
@@ -91,25 +111,21 @@ const Support: React.FC<SupportProps> = ({ isOpen, onClose, currentTheme }) => {
               </div>
 
               {/* กรอบรูป QR Code BMAC */}
-              <div className="p-3 bg-white rounded-2xl shadow-xl w-40 h-40 flex items-center justify-center">
-                {/* 💥 แชมป์สามารถโหลดรูป QR จากเว็บ BMAC มาใส่ตรงนี้ 💥 */}
-                <img 
-                  src={buymeacoffee} // เอาไฟล์รูปไปวางในโฟลเดอร์ public/
-                  alt="Buy Me a Coffee QR" 
-                  className="w-full h-full object-contain"
-                />
+              <div 
+                className="group relative p-3 bg-white rounded-2xl shadow-xl w-40 h-40 flex items-center justify-center cursor-zoom-in hover:scale-105 transition-transform"
+                onClick={() => setExpandedImg(buymeacoffee)}
+              >
+                <img src={buymeacoffee} alt="Buy Me a Coffee QR" className="w-full h-full object-contain" />
+                <div className="absolute bottom-4 right-4 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg p-1 flex items-center justify-center">
+                  <SearchCode className="text-white" size={24} />
+                </div>
               </div>
 
-              {/* ปุ่มกดเด้งไปหน้าเว็บ */}
               <button
-                onClick={async () => {
-                  await open('https://www.buymeacoffee.com/sonesambidev');
-                }}
+                onClick={async () => await open('https://www.buymeacoffee.com/sonesambidev')}
                 className="w-full py-3.5 rounded-xl bg-[#FFDD00] hover:bg-[#FFEA00] text-black font-extrabold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-[#FFDD00]/20"
               >
-                <Coffee size={18} />
-                Open in Browser
-                <ExternalLink size={14} className="opacity-50" />
+                <Coffee size={18} /> Open in Browser
               </button>
             </div>
           )}
