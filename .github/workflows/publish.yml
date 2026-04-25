@@ -46,8 +46,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 💥 เพิ่ม 2 บรรทัดนี้ เพื่อให้ Tauri สร้างไฟล์สำหรับ Auto-update และเซ็นชื่อให้
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__ # จะดึงเวอร์ชันจาก tauri.conf.json อัตโนมัติ
           releaseName: "OrbitKey v__VERSION__"
