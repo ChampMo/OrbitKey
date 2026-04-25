@@ -6,6 +6,8 @@ import InteractionSettings from "./SettingMenu/InteractionSettings";
 import AppearanceSettings from "./SettingMenu/AppearanceSettings";
 import SystemDataSettings from "./SettingMenu/SystemDataSettings";
 import { ThemeId, THEMES, ThemeStyle } from "./Theme";
+import Support from './components/Support';
+import { check } from '@tauri-apps/plugin-updater';
 
 export interface AppSettings {
   globalHotkey: string;
@@ -24,9 +26,12 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
   // ใช้ค่าจาก Dashboard เป็นค่าเริ่มต้นทันที สีจะได้ไม่กระโดด
   const [config, setConfigState] = useState<AppSettings>(initialConfig || { theme: "dark" } as any);
   const [loading, setLoading] = useState(!initialConfig); // ถ้ามีค่าส่งมาแล้วก็ไม่ต้องโชว์ Loading
-
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isBugModalOpen, setIsBugModalOpen] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<any>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<any>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   useEffect(() => {
     // โหลดซ้ำอีกครั้งเพื่อความชัวร์ว่าข้อมูลล่าสุด
     invoke<AppSettings>("get_settings")
@@ -39,6 +44,33 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    const autoCheck = async () => {
+      try {
+        const update = await check();
+        if (update) {
+          setAvailableUpdate(update);
+        }
+      } catch (e) {
+        console.error("Update check failed:", e);
+      }
+    };
+    autoCheck();
+  }, []);
+
+  const manualCheck = async () => {
+    try {
+      const update = await check();
+      if (update) {
+        setPendingUpdate(update);
+      } else {
+        alert("OrbitKey is already up to date! 🛰️");
+      }
+    } catch (e) {
+      alert("Error checking for updates. Please check your internet connection.");
+    }
+  };
 
   const setConfig = useCallback((newConfig: AppSettings) => {
     setConfigState(newConfig);
@@ -96,7 +128,7 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
 
           {/* ปุ่ม Donate */}
           <button
-            onClick={() => {/* ใส่ logic เปิดลิงก์โดเนทของแชมป์ตรงนี้ */}}
+            onClick={() => setIsSupportOpen(true)}
             title="Support OrbitKey"
             className={`flex items-center justify-center w-10 h-10 border rounded-full transition-all shadow-sm ${
               currentTheme.isDark 
@@ -117,7 +149,13 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 pb-20">
           <div className="space-y-6">
             <InteractionSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
-            <SystemDataSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
+            <SystemDataSettings 
+              config={config} 
+              setConfig={setConfig} 
+              activeTheme={currentTheme} 
+              availableUpdate={availableUpdate}
+              setShowUpdateModal={setShowUpdateModal}
+              manualCheck={manualCheck}/>
           </div>
           <div className="space-y-6">
             <AppearanceSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
@@ -128,6 +166,11 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
       <ReportBug 
         isOpen={isBugModalOpen} 
         onClose={() => setIsBugModalOpen(false)} 
+        currentTheme={currentTheme} 
+      />
+      <Support 
+        isOpen={isSupportOpen} 
+        onClose={() => setIsSupportOpen(false)} 
         currentTheme={currentTheme} 
       />
     </div>

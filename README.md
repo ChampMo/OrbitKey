@@ -80,7 +80,6 @@ OrbitKey/
 
 [ ] Phase 5: Auto-Switch Profile (Active Window Tracking)
 
-[ ] Phase 6: Advanced Macro Recording (Sequential Input)
 
 ---
 

@@ -3,7 +3,7 @@ name: "Publish Release"
 on:
   push:
     tags:
-      - 'v0.1.0'
+      - 'v*' # 💥 เปลี่ยนเป็น v* เพื่อให้รันทุกครั้งที่ Push Tag ขึ้นต้นด้วย v
 
 jobs:
   publish:
@@ -45,10 +45,13 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 💥 เพิ่ม 2 บรรทัดนี้ เพื่อให้ Tauri สร้างไฟล์สำหรับ Auto-update และเซ็นชื่อให้
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__ # จะดึงเวอร์ชันจาก package.json อัตโนมัติ
+          tagName: v__VERSION__ # จะดึงเวอร์ชันจาก tauri.conf.json อัตโนมัติ
           releaseName: "OrbitKey v__VERSION__"
           releaseBody: "See the assets below to download the latest version of OrbitKey."
-          releaseDraft: true
+          releaseDraft: true # ตั้งเป็น true ไว้ดีแล้วครับ จะได้เช็คความเรียบร้อยก่อนกด Publish จริง
           prerelease: false
           args: ${{ matrix.args }}

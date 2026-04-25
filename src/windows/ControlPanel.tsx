@@ -25,9 +25,10 @@ import SettingsPanel from "./SettingsPanel";
 import ProTipModal from "./components/ProTipModal";
 import SliceEditor from "./components/SliceEditor";
 import { ICON_MAP } from "./IconMap";
-
+import { check } from '@tauri-apps/plugin-updater';
 // 💥 นำเข้า THEMES จากไฟล์ Theme.tsx 💥
-import { ThemeId, THEMES } from "./Theme"; 
+import UpdateModal from './components/UpdateModal';
+import { ThemeId, THEMES } from "./Theme";
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 export type ActionTypeValue = 
@@ -85,7 +86,6 @@ export const ACCENT_PALETTE = [
 
 const R_MAIN = 120;
 const R_OUTER = 220;
-
 function uid(): string {
   return Math.random().toString(36).slice(2, 11);
 }
@@ -120,7 +120,6 @@ export default function ControlPanel() {
   const [activeProfileIndex, setActiveProfileIndex] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -140,7 +139,8 @@ export default function ControlPanel() {
   const [dragProfilePos, setDragProfilePos] = useState<{ x: number; y: number } | null>(null);
   const [profileDragOffset, setProfileDragOffset] = useState({ x: 0, y: 0 });
   const [profileDragWidth, setProfileDragWidth] = useState(120);
-
+  const [pendingUpdate, setPendingUpdate] = React.useState<any>(null);
+  const [availableUpdate, setAvailableUpdate] = useState<any>(null);
   const liveProfilesRef = useRef<ApiProfile[] | null>(null);
   useEffect(() => { liveProfilesRef.current = liveProfiles; }, [liveProfiles]);
 
@@ -374,6 +374,21 @@ export default function ControlPanel() {
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
   }, [editingId, activeFolderId, activeProfileIndex, profiles, rootSlices, autoSaveToBackend, confirmModal, handleUndo, handleRedo]); 
+
+  useEffect(() => {
+    const autoCheck = async () => {
+      try {
+        const update = await check();
+        if (update) {
+          setPendingUpdate(update); // ถ้าเจอเวอร์ชันใหม่ ข้อมูลจะถูกเก็บที่นี่
+          setAvailableUpdate(update);
+        }
+      } catch (e) {
+        console.error("Update check failed:", e);
+      }
+    };
+    autoCheck();
+  }, []);
 
   function handleAddProfile() {
     const initialSlice = emptySlice();
@@ -1060,9 +1075,16 @@ export default function ControlPanel() {
           <div className={`h-6 w-px mx-1 ${activeTheme.isDark ? 'bg-white/20' : 'bg-black/10'}`}></div>
           
           {/* Settings */}
-          <button onClick={() => setCurrentView("settings")} className={`p-2 opacity-60 hover:opacity-100 hover:rotate-45 rounded-xl transition-all duration-300 ${activeTheme.isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`} title="Settings">
-            <Settings size={22} />
-          </button>
+          <div className="relative">
+            <button onClick={() => setCurrentView("settings")} className={`p-2 opacity-60 hover:opacity-100 hover:rotate-45 rounded-xl transition-all duration-300 ${activeTheme.isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`} title="Settings">
+              <Settings size={22} />
+            </button>
+
+            {/* 🔴 ถ้ามีอัปเดต ให้โชว์จุดแดงมุมขวาบน + อนิเมชันกระพริบ */}
+            {availableUpdate && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-[#0c0c0e] animate-pulse pointer-events-none" />
+            )}
+          </div>
         </div>
       </header>
 
@@ -1254,6 +1276,11 @@ export default function ControlPanel() {
       </main>
       {/* 💥 ส่ง activeTheme ให้ ProTipModal */}
       {showProTip && <ProTipModal onClose={() => setShowProTip(false)} activeTheme={activeTheme} />}
+      <UpdateModal 
+        update={pendingUpdate} 
+        onClose={() => setPendingUpdate(null)} 
+        currentTheme={activeTheme} 
+      />
     </div>
   );
 }

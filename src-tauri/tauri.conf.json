@@ -1,16 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OrbitKey",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.orbitkey.desktop",
-
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
-
   "app": {
     "windows": [
       {
@@ -51,14 +49,24 @@
     },
     "macOSPrivateApi": true
   },
-
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://raw.githubusercontent.com/ChampMo/orbitkey-releases/refs/heads/main/update.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhGRUYwQ0FBOTcyMkZGMTUKUldRVi95S1hxZ3p2ajJDNzQ4TEo2cVJpYVhHaW9Wd3JXaTVYeklVbWVoSVVyV0szbzBnbjN6RTYK"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/32x32.png",
-    "icons/128x128.png",
-    "icons/128x128@2x.png",
-    "icons/icon.icns",
-    "icons/icon.ico"]
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }

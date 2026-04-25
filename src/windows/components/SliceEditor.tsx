@@ -67,6 +67,7 @@ export default function SliceEditor({
 }) {
   const labelRef = useRef<HTMLInputElement>(null);
   const actionInputRef = useRef<HTMLInputElement>(null);
+  const iconSearchInputRef = useRef<HTMLInputElement>(null);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   
@@ -103,11 +104,13 @@ export default function SliceEditor({
   useEffect(() => { setAppDisplayLimit(100); }, [appSearchQuery]);
   useEffect(() => { if (showIconPicker) { setIconSearchQuery(""); setIconDisplayLimit(100); } }, [showIconPicker]);
   useEffect(() => { if (isRecording) actionInputRef.current?.focus(); }, [isRecording]);
-
+  useEffect(() => { if (showIconPicker && iconSearchInputRef.current) {iconSearchInputRef.current.focus();}}, [showIconPicker]);
   const set = useCallback(<K extends keyof ApiSlice>(key: K, value: ApiSlice[K]) =>
       onChange({ ...sliceRef.current, [key]: value }), [onChange]);
 
-  const CurrentIcon = ICON_MAP[slice.icon || "Zap"] || Zap;
+  const CurrentIcon = (slice.icon && !['createLucideIcon', 'defaultAttributes', 'IconAliases'].includes(slice.icon) && ICON_MAP[slice.icon]) 
+    ? ICON_MAP[slice.icon] 
+    : Zap;
 
   // ─── Fetch Installed Apps ───
   useEffect(() => {
@@ -420,11 +423,8 @@ export default function SliceEditor({
                 showIconPicker ? `border-current shadow-lg ${activeTheme.isDark ? 'bg-white/10' : 'bg-black/5'}` : `bg-transparent ${activeTheme.border} opacity-70 hover:opacity-100`
               }`}
             >
-              {CurrentIcon && typeof CurrentIcon === 'function' ? (
-                <CurrentIcon size={20} strokeWidth={2.5} />
-              ) : (
-                <Zap size={20} strokeWidth={2.5} /> // ถ้าหาไอคอนไม่เจอ ให้ใช้ Zap เป็นค่าเริ่มต้น
-              )}
+              {/* 💥 2. ลบ typeof === 'function' ออก แล้วเรียกใช้ตรงๆ เลย */}
+              <CurrentIcon size={20} strokeWidth={2.5} />
             </button>
             {/* 💥 Icon Picker พร้อมระบบป้องกัน Component ปลอมพาจอขาว 💥 */}
             {showIconPicker && (
@@ -433,6 +433,7 @@ export default function SliceEditor({
                 <div className="mb-3 relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-current" />
                   <input 
+                    ref={iconSearchInputRef}
                     type="text" 
                     placeholder="Search icons..." 
                     value={iconSearchQuery}
@@ -452,7 +453,8 @@ export default function SliceEditor({
                   {(() => {
                     // กรองไอคอน
                     const filteredIcons = ICON_LIST.filter(iconName => 
-                      iconName.toLowerCase().includes(iconSearchQuery.toLowerCase())
+                      iconName.toLowerCase().includes(iconSearchQuery.toLowerCase()) &&
+                      !['createLucideIcon', 'defaultAttributes', 'IconAliases', 'icons'].includes(iconName)
                     );
 
                     if (filteredIcons.length === 0) return <div className="col-span-6 text-center text-xs opacity-50 py-4 text-current">No icons found.</div>;
@@ -731,7 +733,7 @@ export default function SliceEditor({
                <div className={`pt-2 mt-4 border-t ${activeTheme.isDark ? 'border-white/10' : 'border-black/10'}`}>
                  <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-4 mb-4 text-center text-current">Add New Step</p>
                  <div className="flex flex-wrap justify-center gap-2">
-                   {["shortcut", "launch", "text_snippet", "delay", "system", "media", "open_app"].map(type => (
+                   {["shortcut", "launch", "text_snippet", "delay"].map(type => (
                      <button type="button" key={type} onClick={() => addMacroStep(type)} className={`px-3 py-2 border rounded-xl text-[10px] font-bold transition-all capitalize flex items-center gap-1.5 ${activeTheme.isDark ? 'bg-white/5 border-white/10 hover:border-orange-500/50 hover:bg-orange-500/10 text-zinc-300 hover:text-orange-400' : 'bg-black/5 border-black/10 hover:border-orange-500 hover:text-orange-600 shadow-sm'}`}>
                        <Plus size={10} strokeWidth={3} /> {type.replace("_", " ")}
                      </button>
