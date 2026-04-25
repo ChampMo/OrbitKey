@@ -1,24 +1,24 @@
 import { useState } from "react";
-import { HardDrive, Power, Download, Upload, AlertTriangle, CheckCircle2, X, RotateCcw, RefreshCw } from "lucide-react"; // เพิ่ม RefreshCw
+import { HardDrive, Power, Download, Loader2, Upload, AlertTriangle, CheckCircle2, X, RotateCcw, RefreshCw } from "lucide-react"; // เพิ่ม RefreshCw
 import { AppSettings } from "../SettingsPanel";
 import { invoke } from "@tauri-apps/api/core";
 import { ThemeStyle } from "../Theme";
+import { relaunch } from '@tauri-apps/plugin-process';
 
 // 💥 1. เพิ่ม Props สำหรับระบบ Update เข้ามาตรงนี้
 export default function SystemDataSettings({ 
   config, setConfig, activeTheme, 
-  availableUpdate, setShowUpdateModal, manualCheck 
+  availableUpdate, manualCheck 
 }: { 
   config: AppSettings, 
   setConfig: (c: AppSettings) => void, 
   activeTheme: ThemeStyle,
   availableUpdate: any,
-  setShowUpdateModal: (open: boolean) => void,
   manualCheck: () => Promise<void>
 }) {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-
+  const [isUpdating, setIsUpdating] = useState(false);
   const showStatus = (msg: string) => {
     setStatusMsg(msg);
     setTimeout(() => setStatusMsg(null), 3000);
@@ -45,6 +45,18 @@ export default function SystemDataSettings({
       setShowResetConfirm(false);
       window.location.reload();
     } catch (err) { console.error("Reset failed:", err); }
+  };
+
+    const handleUpdate = async () => {
+    try {
+      setIsUpdating(true); // เปลี่ยนปุ่มเป็นสถานะกำลังโหลด
+      await availableUpdate.downloadAndInstall(); // ใช้ availableUpdate แทน pendingUpdate
+      await relaunch();
+    } catch (e) {
+      console.error(e);
+      setIsUpdating(false);
+      alert("Failed to update. Please try again.");
+    }
   };
 
   return (
@@ -135,14 +147,22 @@ export default function SystemDataSettings({
           {/* ส่วนปุ่ม: ถ้ามีอัปเดต ใช้ปุ่ม Primary ของธีมนั้นๆ เลย */}
           <button
             type="button"
-            onClick={() => availableUpdate ? setShowUpdateModal(true) : manualCheck()}
-            className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+            disabled={isUpdating} // 💥 ปิดปุ่มกันคนกดรัวๆ
+            onClick={availableUpdate ? handleUpdate : manualCheck} // 💥 แก้บั๊ก onClick ตรงนี้
+            className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+              isUpdating ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'
+            } ${
               availableUpdate 
-                ? activeTheme.primaryBtn // ใช้สีปุ่มหลักของธีม (Indigo, Blue, Green, etc.)
+                ? activeTheme.primaryBtn 
                 : `${activeTheme.isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} opacity-60`
             }`}
           >
-            {availableUpdate ? 'Update' : 'Check'}
+            {/* 💥 เปลี่ยนข้อความปุ่มตามสถานะ */}
+            {isUpdating ? (
+              <><Loader2 size={14} className="animate-spin" /> Updating...</>
+            ) : (
+              availableUpdate ? 'Update' : 'Check'
+            )}
           </button>
         </div>
 

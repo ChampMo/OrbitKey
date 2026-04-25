@@ -30,8 +30,6 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isBugModalOpen, setIsBugModalOpen] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<any>(null);
-  const [pendingUpdate, setPendingUpdate] = useState<any>(null);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
   useEffect(() => {
     // โหลดซ้ำอีกครั้งเพื่อความชัวร์ว่าข้อมูลล่าสุด
     invoke<AppSettings>("get_settings")
@@ -63,7 +61,7 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
     try {
       const update = await check();
       if (update) {
-        setPendingUpdate(update);
+        setAvailableUpdate(update); // 💥 เช็คเจออัปเดต ก็อัปเดตใส่ตัวแปรเดิมเลย
       } else {
         alert("OrbitKey is already up to date! 🛰️");
       }
@@ -150,11 +148,10 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
           <div className="space-y-6">
             <InteractionSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
             <SystemDataSettings 
-              config={config} 
+              config={config}
               setConfig={setConfig} 
               activeTheme={currentTheme} 
               availableUpdate={availableUpdate}
-              setShowUpdateModal={setShowUpdateModal}
               manualCheck={manualCheck}/>
           </div>
           <div className="space-y-6">

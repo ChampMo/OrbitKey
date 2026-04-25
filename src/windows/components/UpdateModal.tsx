@@ -1,5 +1,5 @@
-import React from 'react';
-import { Download, X, Rocket, Info } from 'lucide-react';
+
+import { Download, Rocket, Info } from 'lucide-react';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 export default function UpdateModal({ update, onClose, currentTheme }: any) {
