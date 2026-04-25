@@ -13,6 +13,7 @@ mod window_manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    dotenvy::dotenv().ok();
     tauri::Builder::default()
         // 💥 2. ลบ Builder::new().build() ที่ซ้ำซ้อนออก เหลือแค่ตัว init() 
         .plugin(tauri_plugin_autostart::init(
@@ -73,6 +74,7 @@ pub fn run() {
             commands::get_installed_apps,
             commands::show_control_panel,
             commands::get_default_config,
+            commands::send_bug_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

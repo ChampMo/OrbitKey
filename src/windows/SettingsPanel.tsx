@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft } from "lucide-react";
-
+import { ArrowLeft, Bug, Coffee } from 'lucide-react';
+import ReportBug from './components/ReportBug';
 import InteractionSettings from "./SettingMenu/InteractionSettings";
 import AppearanceSettings from "./SettingMenu/AppearanceSettings";
 import SystemDataSettings from "./SettingMenu/SystemDataSettings";
@@ -26,7 +26,7 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
   const [loading, setLoading] = useState(!initialConfig); // ถ้ามีค่าส่งมาแล้วก็ไม่ต้องโชว์ Loading
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const [isBugModalOpen, setIsBugModalOpen] = useState(false);
   useEffect(() => {
     // โหลดซ้ำอีกครั้งเพื่อความชัวร์ว่าข้อมูลล่าสุด
     invoke<AppSettings>("get_settings")
@@ -73,9 +73,39 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         >
           <ArrowLeft size={20} />
         </button>
+        
         <div>
           <h2 className="text-xl font-extrabold tracking-wide">Settings</h2>
           <p className="text-xs opacity-60 font-medium">Customize your Action Ring experience</p>
+        </div>
+
+        {/* ส่วนที่เพิ่มใหม่: ปุ่มทางขวา */}
+        <div className="ml-auto flex items-center gap-3">
+          {/* ปุ่ม Report Bug */}
+          <button
+            onClick={() => setIsBugModalOpen(true)} // เปลี่ยนจากเปิดลิงก์เป็นเปิด Modal
+            title="Report a bug"
+            className={`flex items-center justify-center w-10 h-10 border rounded-full transition-all shadow-sm ${
+              currentTheme.isDark 
+                ? 'bg-white/5 border-white/10 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 hover:border-red-400/30' 
+                : 'bg-black/5 border-black/10 text-zinc-500 hover:text-red-600 hover:bg-red-600/10 hover:border-red-600/30'
+            }`}
+          >
+            <Bug size={18} />
+          </button>
+
+          {/* ปุ่ม Donate */}
+          <button
+            onClick={() => {/* ใส่ logic เปิดลิงก์โดเนทของแชมป์ตรงนี้ */}}
+            title="Support OrbitKey"
+            className={`flex items-center justify-center w-10 h-10 border rounded-full transition-all shadow-sm ${
+              currentTheme.isDark 
+                ? 'bg-white/5 border-white/10 text-zinc-400 hover:text-yellow-400 hover:bg-yellow-400/10 hover:border-yellow-400/30' 
+                : 'bg-black/5 border-black/10 text-zinc-500 hover:text-yellow-600 hover:bg-yellow-600/10 hover:border-yellow-600/30'
+            }`}
+          >
+            <Coffee size={18} />
+          </button>
         </div>
       </header>
 
@@ -95,6 +125,12 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
           </div>
         </div>
       </main>
+      <ReportBug 
+        isOpen={isBugModalOpen} 
+        onClose={() => setIsBugModalOpen(false)} 
+        currentTheme={currentTheme} 
+      />
     </div>
+    
   );
 }

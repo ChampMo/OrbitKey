@@ -2,41 +2,42 @@
 name = "action-ring"
 version = "0.1.0"
 description = "Radial Menu / Action Ring — Tauri v2 Desktop Application"
-authors = []
+authors = ["ChampMo"]
 edition = "2021"
 
-# See more keys: https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix makes the lib name different from the bin name.
-# Tauri requires both to coexist in the same crate.
 name = "action_ring_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+# ⚠️ ต้องมีตัวนี้เท่านั้นเพื่อให้ build.rs ทำงานได้
+tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
-tauri                       = { version = "2", features = ["macos-private-api"] }
+# Tauri Core & Plugins
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-shell          = "2"
-tauri-plugin-fs             = "2"
-serde                       = { version = "1", features = ["derive"] }
-serde_json                  = "1"
-
-# Input simulation (keyboard shortcuts)
-enigo                       = "0.2"
-
-# Async primitives used in execute_action (spawn_blocking + time::sleep)
-# Tauri v2 embeds tokio, but we need to reference it directly for these APIs.
-tokio                       = { version = "1", features = ["rt", "time"] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2.7.0"
-objc = "0.2.7"
 tauri-plugin-notification = "2.3.3"
 
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Email & Environment
+lettre = "0.11"
+dotenvy = "0.15"
+
+# Automation & OS Integration
+enigo = "0.2"
+objc = "0.2.7"
+
+# Async Runtime (รวมร่างเหลืออันเดียวและเปิด 'full' เพื่อความชัวร์)
+tokio = { version = "1", features = ["full"] }
+
 [features]
-# This feature is used for production builds or when `devUrl` is not set.
-# DO NOT REMOVE!
 custom-protocol = ["tauri/custom-protocol"]
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

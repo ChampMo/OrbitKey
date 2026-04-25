@@ -11,6 +11,10 @@ use std::fs;
 use serde::{Serialize, Deserialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use dotenvy::dotenv;
+use std::env;
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::{Message, SmtpTransport, Transport};
 
 #[derive(Deserialize)]
 struct MacroStep {
@@ -516,5 +520,43 @@ pub fn show_control_panel(handle: tauri::AppHandle) {
     if let Some(window) = handle.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
+    }
+}
+
+#[tauri::command]
+pub async fn send_bug_report(user_email: String, description: String) -> Result<String, String> {
+    // 💥 พยายามโหลดจากหลายที่เพื่อความชัวร์
+    dotenvy::dotenv().ok(); // ลองโหลดจากที่ปัจจุบัน
+    dotenvy::from_path(Path::new(".env")).ok(); // ลองโหลดจากรูท
+    dotenvy::from_path(Path::new("src-tauri/.env")).ok(); // ลองโหลดจากโฟลเดอร์ tauri
+
+    // ดึงค่าออกมา ถ้าไม่ได้ให้บอก Error ที่ชัดเจนขึ้น
+    let smtp_email = std::env::var("SMTP_EMAIL")
+        .map_err(|_| "Error: SMTP_EMAIL not found in environment")?;
+    let smtp_password = std::env::var("SMTP_PASSWORD")
+        .map_err(|_| "Error: SMTP_PASSWORD not found in environment")?;
+
+    let email_body = format!(
+        "New Bug Report from OrbitKey\n\nFrom: {}\nDescription:\n{}",
+        user_email, description
+    );
+
+    let email = Message::builder()
+        .from(format!("OrbitKey Reporter <{}>", smtp_email).parse().unwrap())
+        .to("sonesambidev@gmail.com".parse().unwrap())
+        .subject("OrbitKey Bug Report 🚀")
+        .body(email_body)
+        .map_err(|e| e.to_string())?;
+
+    let creds = Credentials::new(smtp_email, smtp_password);
+
+    let mailer = SmtpTransport::relay("smtp.gmail.com")
+        .unwrap()
+        .credentials(creds)
+        .build();
+
+    match mailer.send(&email) {
+        Ok(_) => Ok("Success".into()),
+        Err(e) => Err(format!("Error: {e}")),
     }
 }
