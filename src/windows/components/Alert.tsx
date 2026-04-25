@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { ThemeStyle } from '../Theme'; // 💥 ปรับ path ให้ตรงกับที่อยู่ของไฟล์ Theme.tsx ด้วยนะครับ
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Heart, Coffee, QrCode, ExternalLink, SearchCode } from 'lucide-react';
+import { X, Heart, Coffee, QrCode, SearchCode } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell'; // ใช้สำหรับเปิดเว็บ BMAC
 import buymeacoffee from "../../assets/buymeacoffee-qr.png";
 import promptpay from "../../assets/promptpay-qr.jpg";
