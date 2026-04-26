@@ -30,7 +30,7 @@ pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
     }
 
     let _ = ring_window.set_decorations(false);
-    
+
     // โชว์หน้าต่างของ Tauri เพื่อให้ Webview อัปเดตสถานะ
     let _ = ring_window.show();
 
@@ -42,14 +42,14 @@ pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
             unsafe {
                 let ns_window = ns_win as *mut objc::runtime::Object;
                 let nil_id: *mut objc::runtime::Object = std::ptr::null_mut();
-                
-                // 💥 1. สั่งให้โชว์และ "รับบทเป็นหน้าต่าง Key" ทันที 
+
+                // 💥 1. สั่งให้โชว์และ "รับบทเป็นหน้าต่าง Key" ทันที
                 // ท่านี้แหละที่แก้ปัญหา Hover ไม่ติดและต้องคลิกค้าง!
                 let _: () = msg_send![ns_window, makeKeyAndOrderFront: nil_id];
-                
+
                 // 💥 2. บังคับรับเมาส์ Hover เสมอ
                 let _: () = msg_send![ns_window, setAcceptsMouseMovedEvents: true];
-                
+
                 // 💥 3. ป้องกัน Tauri บล็อกการรับคลิกเพราะมองว่าเป็นหน้าต่างโปร่งใส
                 let _: () = msg_send![ns_window, setIgnoresMouseEvents: false];
             }

@@ -15,8 +15,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec!["--minimized"]),
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
         ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
@@ -43,7 +43,6 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             if let Some(ring_window) = app.get_webview_window("action-ring") {
-    
                 #[cfg(target_os = "macos")]
                 {
                     use objc::runtime::{Class, Object};
@@ -58,7 +57,7 @@ pub fn run() {
                     if let Ok(ns_win) = ring_window.ns_window() {
                         let ns_window = ns_win as *mut Object;
                         unsafe {
-                            // 1. 🪄 แปลงร่างจาก NSWindow เป็น NSPanel 
+                            // 1. 🪄 แปลงร่างจาก NSWindow เป็น NSPanel
                             let nspanel_class = Class::get("NSPanel").unwrap();
                             object_setClass(ns_window, nspanel_class);
 

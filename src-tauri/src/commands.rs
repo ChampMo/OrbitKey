@@ -2,19 +2,19 @@ use crate::actions;
 use crate::state::{ActionSlice, ActionType, AppState, Profile};
 use crate::storage;
 use crate::window_manager;
-use serde_json::json;
-use tauri::{AppHandle, State, Manager};
-use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
-use tauri::Emitter;
-use std::fs;
-use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use dotenvy::dotenv;
-use std::env;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{Message, SmtpTransport, Transport};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tauri::Emitter;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
 
 #[derive(Deserialize)]
 struct MacroStep {
@@ -38,7 +38,7 @@ pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
     window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
 
     // 💥 ต้องมีบรรทัดนี้ปิดท้าย เพื่อบอกว่าฟังก์ชันทำงานสำเร็จ (คืนค่า Ok)
-    Ok(()) 
+    Ok(())
 }
 
 #[tauri::command]
@@ -102,7 +102,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                 for path in paths {
                     #[cfg(target_os = "windows")]
                     let _ = std::process::Command::new(&path).spawn(); // รันตรงๆ ไปเลย
-                    
+
                     #[cfg(target_os = "macos")]
                     let _ = std::process::Command::new("open").arg(&path).spawn();
                 }
@@ -121,7 +121,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                 let _ = tauri::WebviewWindowBuilder::new(
                     &_app,
                     "main",
-                    tauri::WebviewUrl::App("index.html".into())
+                    tauri::WebviewUrl::App("index.html".into()),
                 )
                 .title("OrbitKey — Control Panel")
                 .inner_size(1000.0, 700.0) // 💡 แชมป์ปรับขนาดเริ่มต้นตรงนี้ได้ครับ
@@ -130,10 +130,9 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
             Ok(())
         }
 
-
         ActionType::MultiAction => {
             let json_data = action.action_data.unwrap_or_else(|| "[]".to_string());
-            
+
             let steps: Vec<MacroStep> = match serde_json::from_str(&json_data) {
                 Ok(s) => s,
                 Err(e) => return Err(format!("Failed to parse macro JSON: {e}")),
@@ -147,22 +146,33 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                         tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
                     }
                     "shortcut" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data)).await;
+                        let _ =
+                            tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data))
+                                .await;
                     }
                     "launch" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::launch_target(&data)).await;
+                        let _ = tokio::task::spawn_blocking(move || actions::launch_target(&data))
+                            .await;
                     }
                     "script" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::run_script(&data, &[])).await;
+                        let _ =
+                            tokio::task::spawn_blocking(move || actions::run_script(&data, &[]))
+                                .await;
                     }
                     "text_snippet" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::type_text_snippet(&data)).await;
+                        let _ =
+                            tokio::task::spawn_blocking(move || actions::type_text_snippet(&data))
+                                .await;
                     }
                     "media" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::run_media_command(&data)).await;
+                        let _ =
+                            tokio::task::spawn_blocking(move || actions::run_media_command(&data))
+                                .await;
                     }
                     "system" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::run_system_command(&data)).await;
+                        let _ =
+                            tokio::task::spawn_blocking(move || actions::run_system_command(&data))
+                                .await;
                     }
                     "switch_profile" => {
                         use tauri::Emitter;
@@ -173,7 +183,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                             for path in paths {
                                 #[cfg(target_os = "windows")]
                                 let _ = std::process::Command::new(&path).spawn();
-                                
+
                                 #[cfg(target_os = "macos")]
                                 let _ = std::process::Command::new("open").arg(&path).spawn();
                             }
@@ -188,7 +198,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                             let _ = tauri::WebviewWindowBuilder::new(
                                 &_app,
                                 "main",
-                                tauri::WebviewUrl::App("index.html".into())
+                                tauri::WebviewUrl::App("index.html".into()),
                             )
                             .title("Action Ring — Control Panel")
                             .inner_size(1000.0, 700.0)
@@ -200,7 +210,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                     }
                 }
             }
-            
+
             Ok(())
         }
     };
@@ -218,9 +228,9 @@ pub fn get_default_config() -> String {
     DEFAULT_PROFILES_JSON.to_string()
 }
 
-
 #[tauri::command]
-pub fn get_profiles(app: AppHandle) -> Vec<Profile> { // 💥 เปลี่ยนจาก ApiProfile เป็น Profile
+pub fn get_profiles(app: AppHandle) -> Vec<Profile> {
+    // 💥 เปลี่ยนจาก ApiProfile เป็น Profile
     let config_path = app.path().app_config_dir().unwrap().join("profiles.json");
 
     if config_path.exists() {
@@ -231,7 +241,7 @@ pub fn get_profiles(app: AppHandle) -> Vec<Profile> { // 💥 เปลี่ย
         })
     } else {
         let default_data = include_str!("../default_profiles.json");
-        
+
         // 💥 ตรงนี้ก็ต้องเปลี่ยนเป็น Profile ด้วย
         match serde_json::from_str::<Vec<Profile>>(default_data) {
             Ok(profiles) => profiles,
@@ -298,7 +308,8 @@ pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), Stri
     let json_string = serde_json::to_string_pretty(&profile)
         .map_err(|e| format!("Failed to serialize profile: {}", e))?;
 
-    let result = app.dialog()
+    let result = app
+        .dialog()
         .file()
         .set_file_name(&format!("{}.json", profile.name))
         .set_title("Export Profile")
@@ -306,35 +317,41 @@ pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), Stri
         .blocking_save_file();
 
     if let Some(path) = result {
-        let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
+        let path_buf = path
+            .into_path()
+            .map_err(|_| "Invalid file path".to_string())?;
         std::fs::write(&path_buf, json_string).map_err(|e| format!("Failed to write: {}", e))?;
         Ok(())
     } else {
         // ✅ เลือกอย่างใดอย่างหนึ่งครับ (แนะนำ Ok(()) เพื่อไม่ให้ React พ่นสีแดง)
         println!("[action-ring] Export cancelled");
-        Ok(()) 
+        Ok(())
     }
 }
 
 #[tauri::command]
 pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
-    let result = app.dialog()
+    let result = app
+        .dialog()
         .file()
         .set_title("Import Profile")
         .add_filter("JSON Files", &["json"])
         .blocking_pick_file();
 
     if let Some(path) = result {
-        let path_buf = path.into_path().map_err(|_| "Invalid file path".to_string())?;
-        let json_string = std::fs::read_to_string(&path_buf).map_err(|e| format!("Failed to read: {}", e))?;
-        let profile: Profile = serde_json::from_str(&json_string).map_err(|e| format!("Failed to deserialize: {}", e))?;
+        let path_buf = path
+            .into_path()
+            .map_err(|_| "Invalid file path".to_string())?;
+        let json_string =
+            std::fs::read_to_string(&path_buf).map_err(|e| format!("Failed to read: {}", e))?;
+        let profile: Profile = serde_json::from_str(&json_string)
+            .map_err(|e| format!("Failed to deserialize: {}", e))?;
         Ok(profile)
     } else {
         // ✅ ส่ง Err กลับไป (ห้ามมี Ok(()) ต่อท้าย)
         Err("Import cancelled".to_string())
     }
 }
-
 
 #[tauri::command]
 pub fn open_accessibility_settings() {
@@ -432,20 +449,18 @@ pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn factory_reset(app: AppHandle) -> Result<(), String> {
     use crate::state::AppSettings;
-    
+
     // 💥 ใช้ค่าจาก constant ที่เราประกาศไว้ด้านบนไฟล์
     let default_profiles: Vec<Profile> = serde_json::from_str(DEFAULT_PROFILES_JSON)
         .map_err(|e| format!("Default JSON error: {}", e))?;
-    
-    let default_settings = AppSettings::default(); 
-    
+
+    let default_settings = AppSettings::default();
+
     storage::write_profiles(&app, &default_profiles)?;
     storage::write_settings(&app, &default_settings)?;
-    
+
     Ok(())
 }
-
-
 
 #[tauri::command]
 pub fn get_installed_apps() -> Vec<AppInfo> {
@@ -475,7 +490,7 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
         let mut cmd = std::process::Command::new("powershell");
         cmd.args(["-NoProfile", "-Command", ps_script]);
-        
+
         #[cfg(windows)]
         std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x08000000);
 
@@ -510,7 +525,7 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
     // จัดเรียงกันเหนียวอีกรอบ
     apps.sort_by(|a, b| a.name.cmp(&b.name));
     apps.dedup_by(|a, b| a.name == b.name);
-    
+
     apps
 }
 
@@ -531,8 +546,8 @@ pub async fn send_bug_report(user_email: String, description: String) -> Result<
     dotenvy::from_path(Path::new("src-tauri/.env")).ok(); // ลองโหลดจากโฟลเดอร์ tauri
 
     // ดึงค่าออกมา ถ้าไม่ได้ให้บอก Error ที่ชัดเจนขึ้น
-    let smtp_email = std::env::var("SMTP_EMAIL")
-        .map_err(|_| "Error: SMTP_EMAIL not found in environment")?;
+    let smtp_email =
+        std::env::var("SMTP_EMAIL").map_err(|_| "Error: SMTP_EMAIL not found in environment")?;
     let smtp_password = std::env::var("SMTP_PASSWORD")
         .map_err(|_| "Error: SMTP_PASSWORD not found in environment")?;
 
@@ -542,7 +557,11 @@ pub async fn send_bug_report(user_email: String, description: String) -> Result<
     );
 
     let email = Message::builder()
-        .from(format!("OrbitKey Reporter <{}>", smtp_email).parse().unwrap())
+        .from(
+            format!("OrbitKey Reporter <{}>", smtp_email)
+                .parse()
+                .unwrap(),
+        )
         .to("sonesambidev@gmail.com".parse().unwrap())
         .subject("OrbitKey Bug Report 🚀")
         .body(email_body)
@@ -564,17 +583,17 @@ pub async fn send_bug_report(user_email: String, description: String) -> Result<
 #[tauri::command]
 pub fn get_mouse_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
     use tauri::Manager;
-    
+
     if let Some(window) = app.get_webview_window("action-ring") {
         if let Ok(pos) = window.cursor_position() {
             if let Ok(Some(monitor)) = window.current_monitor() {
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let mon_pos = monitor.position();
-                
+
                 // คำนวณพิกัดให้ตรงกับจอ Mac (Retina) ล่วงหน้าเลย
                 let local_x = (pos.x as f64 - mon_pos.x as f64) / scale;
                 let local_y = (pos.y as f64 - mon_pos.y as f64) / scale;
-                
+
                 return Ok((local_x, local_y));
             }
         }

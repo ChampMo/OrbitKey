@@ -124,6 +124,12 @@ export default function SystemDataSettings({
     }
   };
 
+  const handleToggleStartWithOS = () => {
+    // 💥 สังเกตว่าผมแก้จาก config.startWithOS เป็น config.startWithOs นะครับ
+    const newConfig = { ...config, startWithOs: !config.startWithOs };
+    setConfig(newConfig); 
+  };
+
   return (
     <div className={`border rounded-2xl p-6 space-y-6 transition-colors duration-500 ${activeTheme.isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
       
@@ -244,10 +250,11 @@ export default function SystemDataSettings({
           </div>
           <button
             type="button"
-            onClick={() => setConfig({ ...config, startWithOS: !config.startWithOS })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${config.startWithOS ? "bg-emerald-500" : (activeTheme.isDark ? "bg-white/20" : "bg-black/20")}`}
+            onClick={handleToggleStartWithOS}
+            className={`w-11 h-6 rounded-full transition-colors relative ${config.startWithOs ? "bg-emerald-500" : (activeTheme.isDark ? "bg-white/20" : "bg-black/20")}`}
           >
-            <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${config.startWithOS ? "left-6" : "left-1"}`} />
+            {/* 💥 ตรงนี้ก็แก้เป็น config.startWithOs ด้วยครับ */}
+            <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${config.startWithOs ? "left-6" : "left-1"}`} />
           </button>
         </div>
       </div>

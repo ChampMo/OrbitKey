@@ -93,27 +93,76 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
 
         // 💥 2. แปลงตัวอักษรเป็น Hardware Key Code ของ Mac (เพื่อทะลุกำแพงภาษาไทย)
         let key_code = match key_str {
-            "a" => 0, "s" => 1, "d" => 2, "f" => 3, "h" => 4, "g" => 5, "z" => 6,
-            "x" => 7, "c" => 8, "v" => 9, "b" => 11, "q" => 12, "w" => 13, "e" => 14,
-            "r" => 15, "y" => 16, "t" => 17, "1" => 18, "2" => 19, "3" => 20,
-            "4" => 21, "6" => 22, "5" => 23, "=" => 24, "9" => 25, "7" => 26,
-            "-" => 27, "8" => 28, "0" => 29, "]" => 30, "o" => 31, "u" => 32,
-            "[" => 33, "i" => 34, "p" => 35, "l" => 37, "j" => 38, "'" => 39,
-            "k" => 40, ";" => 41, "\\" => 42, "," => 43, "/" => 44, "n" => 45,
-            "m" => 46, "." => 47,
-            "return" | "enter" => 36, "tab" => 48, "space" | " " => 49,
-            "delete" | "backspace" | "bksp" => 51, "esc" | "escape" => 53,
-            "up" | "uparrow" => 126, "down" | "downarrow" => 125,
-            "left" | "leftarrow" => 123, "right" | "rightarrow" => 124,
+            "a" => 0,
+            "s" => 1,
+            "d" => 2,
+            "f" => 3,
+            "h" => 4,
+            "g" => 5,
+            "z" => 6,
+            "x" => 7,
+            "c" => 8,
+            "v" => 9,
+            "b" => 11,
+            "q" => 12,
+            "w" => 13,
+            "e" => 14,
+            "r" => 15,
+            "y" => 16,
+            "t" => 17,
+            "1" => 18,
+            "2" => 19,
+            "3" => 20,
+            "4" => 21,
+            "6" => 22,
+            "5" => 23,
+            "=" => 24,
+            "9" => 25,
+            "7" => 26,
+            "-" => 27,
+            "8" => 28,
+            "0" => 29,
+            "]" => 30,
+            "o" => 31,
+            "u" => 32,
+            "[" => 33,
+            "i" => 34,
+            "p" => 35,
+            "l" => 37,
+            "j" => 38,
+            "'" => 39,
+            "k" => 40,
+            ";" => 41,
+            "\\" => 42,
+            "," => 43,
+            "/" => 44,
+            "n" => 45,
+            "m" => 46,
+            "." => 47,
+            "return" | "enter" => 36,
+            "tab" => 48,
+            "space" | " " => 49,
+            "delete" | "backspace" | "bksp" => 51,
+            "esc" | "escape" => 53,
+            "up" | "uparrow" => 126,
+            "down" | "downarrow" => 125,
+            "left" | "leftarrow" => 123,
+            "right" | "rightarrow" => 124,
             _ => -1, // ถ้าไม่อยู่ในลิสต์ ให้ข้ามไปใช้ keystroke ปกติ
         };
 
         let script = if key_code != -1 {
             // ใช้รหัสฮาร์ดแวร์ (ปลอดภัยที่สุด)
-            format!("tell application \"System Events\" to key code {} {}", key_code, using_clause)
+            format!(
+                "tell application \"System Events\" to key code {} {}",
+                key_code, using_clause
+            )
         } else {
             // สำรองสำหรับปุ่มที่ไม่ได้ map ไว้
-            format!("tell application \"System Events\" to keystroke \"{}\" {}", key_str, using_clause)
+            format!(
+                "tell application \"System Events\" to keystroke \"{}\" {}",
+                key_str, using_clause
+            )
         };
 
         // สั่งรัน AppleScript
@@ -127,7 +176,10 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
             return Err("Need Accessibility Permission! (macOS blocked this action)".to_string());
         }
 
-        println!("[action-ring] Shortcut simulated via AppleScript: {}", shortcut);
+        println!(
+            "[action-ring] Shortcut simulated via AppleScript: {}",
+            shortcut
+        );
         return Ok(());
     }
 
@@ -135,7 +187,7 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
         use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-        
+
         let modifiers: Vec<Key> = mod_tokens
             .iter()
             .map(|s| parse_modifier(s))
@@ -143,9 +195,8 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
 
         let main_key = parse_key(key_str)?;
 
-        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
-            format!("Failed to initialise input simulator: {e}")
-        })?;
+        let mut enigo = Enigo::new(&Settings::default())
+            .map_err(|e| format!("Failed to initialise input simulator: {e}"))?;
 
         for &modifier in &modifiers {
             let _ = enigo.key(modifier, Direction::Press);
@@ -193,7 +244,7 @@ fn parse_modifier(s: &str) -> Result<Key, String> {
             {
                 Ok(Key::Meta) // Fallback สำหรับ OS อื่นๆ
             }
-        },
+        }
         "ctrl" | "control" => Ok(Key::Control),
         "shift" => Ok(Key::Shift),
         "alt" | "option" => Ok(Key::Alt),
@@ -530,7 +581,10 @@ pub fn type_text_snippet(text: &str) -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     // ใช้ enigo พิมพ์ข้อความออกไปตรงๆ เลย
     enigo.text(text).map_err(|e| e.to_string())?;
-    println!("[action-ring] Typed snippet: {}...", &text.chars().take(15).collect::<String>());
+    println!(
+        "[action-ring] Typed snippet: {}...",
+        &text.chars().take(15).collect::<String>()
+    );
     Ok(())
 }
 
@@ -549,7 +603,9 @@ pub fn run_media_command(cmd: &str) -> Result<(), String> {
                     set volume input volume 0
                 end if
             ";
-            let _ = std::process::Command::new("osascript").args(["-e", script]).spawn();
+            let _ = std::process::Command::new("osascript")
+                .args(["-e", script])
+                .spawn();
             println!("[action-ring] Toggled mic mute via AppleScript (macOS)");
         }
 
@@ -572,7 +628,7 @@ pub fn run_media_command(cmd: &str) -> Result<(), String> {
 
     // 💥 2. คำสั่ง Media อื่นๆ (Play, Pause, Volume) ใช้ enigo จัดการตามปกติ
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
-    
+
     let key = match cmd {
         "media_play_pause" => Key::MediaPlayPause,
         "media_next" => Key::MediaNextTrack,
@@ -583,9 +639,11 @@ pub fn run_media_command(cmd: &str) -> Result<(), String> {
         _ => return Err(format!("Unknown media command: {}", cmd)),
     };
 
-    enigo.key(key, Direction::Click).map_err(|e| e.to_string())?;
+    enigo
+        .key(key, Direction::Click)
+        .map_err(|e| e.to_string())?;
     println!("[action-ring] Media command executed: {}", cmd);
-    
+
     Ok(())
 }
 
@@ -594,13 +652,17 @@ pub fn run_system_command(cmd: &str) -> Result<(), String> {
     match cmd {
         "sys_sleep" => {
             #[cfg(target_os = "windows")]
-            let _ = Command::new("rundll32.exe").args(["powrprof.dll,SetSuspendState", "0,1,0"]).spawn();
+            let _ = Command::new("rundll32.exe")
+                .args(["powrprof.dll,SetSuspendState", "0,1,0"])
+                .spawn();
             #[cfg(target_os = "macos")]
             let _ = Command::new("pmset").arg("sleepnow").spawn();
         }
         "sys_lock" => {
             #[cfg(target_os = "windows")]
-            let _ = Command::new("rundll32.exe").args(["user32.dll,LockWorkStation"]).spawn();
+            let _ = Command::new("rundll32.exe")
+                .args(["user32.dll,LockWorkStation"])
+                .spawn();
             #[cfg(target_os = "macos")]
             let _ = Command::new("pmset").args(["displaysleepnow"]).spawn();
         }
@@ -608,7 +670,7 @@ pub fn run_system_command(cmd: &str) -> Result<(), String> {
             // 💥 เปลี่ยนจาก unwrap() เป็นการจัดการ Error นุ่มๆ
             let mut enigo = Enigo::new(&Settings::default())
                 .map_err(|e| format!("Need Accessibility Permission! ({})", e))?;
-            
+
             let _ = enigo.key(Key::Meta, Direction::Press);
             let _ = enigo.key(Key::Unicode('d'), Direction::Click);
             let _ = enigo.key(Key::Meta, Direction::Release);
@@ -617,7 +679,7 @@ pub fn run_system_command(cmd: &str) -> Result<(), String> {
             // 💥 เปลี่ยนจาก unwrap() เป็นการจัดการ Error นุ่มๆ
             let mut enigo = Enigo::new(&Settings::default())
                 .map_err(|e| format!("Need Accessibility Permission! ({})", e))?;
-                
+
             #[cfg(target_os = "windows")]
             {
                 let _ = enigo.key(Key::Alt, Direction::Press);
@@ -633,7 +695,7 @@ pub fn run_system_command(cmd: &str) -> Result<(), String> {
         }
         _ => return Err(format!("Unknown system command: {}", cmd)),
     }
-    
+
     println!("[action-ring] System command executed: {}", cmd);
     Ok(())
 }

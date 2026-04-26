@@ -12,7 +12,7 @@ import Support from './components/Support';
 
 export interface AppSettings {
   globalHotkey: string;
-  startWithOS: boolean;
+  startWithOs: boolean;
   ringScale: number;
   closeAfterExec: boolean;
   triggerMode: string;
