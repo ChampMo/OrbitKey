@@ -65,7 +65,7 @@ export interface ApiProfile {
 
 interface AppSettings { 
   globalHotkey: string; 
-  startWithOS: boolean; 
+  startWithOs: boolean; 
   ringScale: number; 
   closeAfterExec: boolean; 
   triggerMode: string; 
