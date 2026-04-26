@@ -113,6 +113,7 @@ pub fn run() {
             commands::show_control_panel,
             commands::get_default_config,
             commands::send_bug_report,
+            commands::get_mouse_position,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

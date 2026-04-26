@@ -50,8 +50,9 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 ///   *System Preferences → Privacy & Security → Accessibility*, otherwise
 ///   `Enigo::new` will return an error.
 /// * **Windows** — no extra permissions required in a normal desktop session.
+// ─── Shortcut simulation ──────────────────────────────────────────────────────
+
 pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
-    // ── 1. Tokenise ──────────────────────────────────────────────────────────
     let lower = shortcut.to_lowercase();
     let tokens: Vec<&str> = lower
         .split('+')
@@ -66,66 +67,111 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     let (mod_tokens, key_tokens) = tokens.split_at(tokens.len() - 1);
     let key_str = key_tokens[0];
 
-    let modifiers: Vec<Key> = mod_tokens
-        .iter()
-        .map(|s| parse_modifier(s)) // ตรวจสอบ parse_modifier ด้วยนะครับว่าห้ามมี .unwrap()
-        .collect::<Result<_, _>>()?;
+    // 🍎 ท่าเจาะเกราะ macOS: ใช้ AppleScript ยิงคำสั่งแทน enigo (ไม่มีวันแครช 100%)
+    // 🍎 ท่าเจาะเกราะ macOS: ใช้ AppleScript ยิงคำสั่งแทน enigo (ไม่มีวันแครช 100%)
+    #[cfg(target_os = "macos")]
+    {
+        // 💥 1. หน่วงเวลาให้วงแหวนปิดสนิท และแอปเดิมดึง Focus กลับไปก่อน (สำคัญมาก!)
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
-    let main_key = parse_key(key_str)?;
-
-    // ── 2. Initialise enigo ──────────────────────────────────────────────────
-    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
-        format!(
-            "Failed to initialise input simulator: {e}\n\
-             On macOS, grant Accessibility access to this app."
-        )
-    })?;
-
-    // ── 3. Press modifiers (order-preserved) ─────────────────────────────────
-    for &modifier in &modifiers {
-        let _ = enigo.key(modifier, Direction::Press);
-    }
-
-    std::thread::sleep(Duration::from_millis(20));
-
-    // ── 4. Click main key ────────────────────────────────────────────────────
-    let mut is_success = true;
-    let mut error_message = String::new();
-
-    if let Err(e) = enigo.key(main_key, Direction::Click) {
-        let mut recovered = false;
-
-        // 🇹🇭 ท่าเจาะเกราะภาษาไทย
-        if let Key::Unicode(c) = main_key {
-            let thai_char = eng_to_thai_kedmanee(c);
-            if thai_char != c {
-                if enigo.key(Key::Unicode(thai_char), Direction::Click).is_ok() {
-                    recovered = true;
-                    println!("[action-ring] ทะลุเกราะภาษาไทยสำเร็จ! (แปลง {} เป็น {})", c, thai_char);
-                }
+        let mut modifiers = Vec::new();
+        for &m in mod_tokens {
+            match m {
+                "cmd" | "command" | "meta" | "win" | "super" => modifiers.push("command down"),
+                "ctrl" | "control" => modifiers.push("control down"),
+                "shift" => modifiers.push("shift down"),
+                "alt" | "option" => modifiers.push("option down"),
+                _ => {}
             }
         }
 
-        if !recovered {
+        let using_clause = if modifiers.is_empty() {
+            String::new()
+        } else {
+            format!("using {{{}}}", modifiers.join(", "))
+        };
+
+        // 💥 2. แปลงตัวอักษรเป็น Hardware Key Code ของ Mac (เพื่อทะลุกำแพงภาษาไทย)
+        let key_code = match key_str {
+            "a" => 0, "s" => 1, "d" => 2, "f" => 3, "h" => 4, "g" => 5, "z" => 6,
+            "x" => 7, "c" => 8, "v" => 9, "b" => 11, "q" => 12, "w" => 13, "e" => 14,
+            "r" => 15, "y" => 16, "t" => 17, "1" => 18, "2" => 19, "3" => 20,
+            "4" => 21, "6" => 22, "5" => 23, "=" => 24, "9" => 25, "7" => 26,
+            "-" => 27, "8" => 28, "0" => 29, "]" => 30, "o" => 31, "u" => 32,
+            "[" => 33, "i" => 34, "p" => 35, "l" => 37, "j" => 38, "'" => 39,
+            "k" => 40, ";" => 41, "\\" => 42, "," => 43, "/" => 44, "n" => 45,
+            "m" => 46, "." => 47,
+            "return" | "enter" => 36, "tab" => 48, "space" | " " => 49,
+            "delete" | "backspace" | "bksp" => 51, "esc" | "escape" => 53,
+            "up" | "uparrow" => 126, "down" | "downarrow" => 125,
+            "left" | "leftarrow" => 123, "right" | "rightarrow" => 124,
+            _ => -1, // ถ้าไม่อยู่ในลิสต์ ให้ข้ามไปใช้ keystroke ปกติ
+        };
+
+        let script = if key_code != -1 {
+            // ใช้รหัสฮาร์ดแวร์ (ปลอดภัยที่สุด)
+            format!("tell application \"System Events\" to key code {} {}", key_code, using_clause)
+        } else {
+            // สำรองสำหรับปุ่มที่ไม่ได้ map ไว้
+            format!("tell application \"System Events\" to keystroke \"{}\" {}", key_str, using_clause)
+        };
+
+        // สั่งรัน AppleScript
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output()
+            .map_err(|e| format!("Failed to execute AppleScript: {}", e))?;
+
+        if !output.status.success() {
+            return Err("Need Accessibility Permission! (macOS blocked this action)".to_string());
+        }
+
+        println!("[action-ring] Shortcut simulated via AppleScript: {}", shortcut);
+        return Ok(());
+    }
+
+    // 🪟 สำหรับ Windows / Linux ยังคงใช้ enigo ตามปกติ (เพราะระบบมันไม่โหดเท่า Mac)
+    #[cfg(not(target_os = "macos"))]
+    {
+        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        
+        let modifiers: Vec<Key> = mod_tokens
+            .iter()
+            .map(|s| parse_modifier(s))
+            .collect::<Result<_, _>>()?;
+
+        let main_key = parse_key(key_str)?;
+
+        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
+            format!("Failed to initialise input simulator: {e}")
+        })?;
+
+        for &modifier in &modifiers {
+            let _ = enigo.key(modifier, Direction::Press);
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
+        let mut is_success = true;
+        let mut error_message = String::new();
+
+        if let Err(e) = enigo.key(main_key, Direction::Click) {
             is_success = false;
             error_message = format!("Key click failed ({key_str:?}): {e}");
         }
-    }
 
-    // 💥 5. RELEASE MODIFIERS (สำคัญที่สุด!!!) 💥
-    // เราต้องคลายปุ่มเสมอ ไม่ว่าจะกด main_key สำเร็จหรือเกิด Error ก็ตาม
-    // โดยใช้ .rev() เพื่อปล่อยปุ่มถอยหลัง (เช่น กด ctrl -> shift ตอนปล่อยต้องปล่อย shift -> ctrl)
-    for &modifier in modifiers.iter().rev() {
-        let _ = enigo.key(modifier, Direction::Release);
-    }
+        for &modifier in modifiers.iter().rev() {
+            let _ = enigo.key(modifier, Direction::Release);
+        }
 
-    // ถ้ากดไม่สำเร็จ ค่อยโยน Error ออกไป "หลังจาก" ปล่อยปุ่มเสร็จแล้ว
-    if !is_success {
-        return Err(error_message);
-    }
+        if !is_success {
+            return Err(error_message);
+        }
 
-    println!("[action-ring] Shortcut simulated: {shortcut}");
-    Ok(())
+        println!("[action-ring] Shortcut simulated: {}", shortcut);
+        Ok(())
+    }
 }
 
 /// Map a lowercase modifier token to an [`enigo::Key`].
@@ -559,15 +605,19 @@ pub fn run_system_command(cmd: &str) -> Result<(), String> {
             let _ = Command::new("pmset").args(["displaysleepnow"]).spawn();
         }
         "win_show_desktop" => {
-            // แฮ็กง่ายๆ ด้วยการส่งคำสั่งคีย์บอร์ด Win + D
-            let mut enigo = Enigo::new(&Settings::default()).unwrap();
+            // 💥 เปลี่ยนจาก unwrap() เป็นการจัดการ Error นุ่มๆ
+            let mut enigo = Enigo::new(&Settings::default())
+                .map_err(|e| format!("Need Accessibility Permission! ({})", e))?;
+            
             let _ = enigo.key(Key::Meta, Direction::Press);
             let _ = enigo.key(Key::Unicode('d'), Direction::Click);
             let _ = enigo.key(Key::Meta, Direction::Release);
         }
         "win_close" => {
-            // แฮ็กง่ายๆ ด้วยการกด Alt+F4 (Win) หรือ Cmd+W (Mac)
-            let mut enigo = Enigo::new(&Settings::default()).unwrap();
+            // 💥 เปลี่ยนจาก unwrap() เป็นการจัดการ Error นุ่มๆ
+            let mut enigo = Enigo::new(&Settings::default())
+                .map_err(|e| format!("Need Accessibility Permission! ({})", e))?;
+                
             #[cfg(target_os = "windows")]
             {
                 let _ = enigo.key(Key::Alt, Direction::Press);

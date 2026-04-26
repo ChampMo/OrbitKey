@@ -560,3 +560,24 @@ pub async fn send_bug_report(user_email: String, description: String) -> Result<
         Err(e) => Err(format!("Error: {e}")),
     }
 }
+
+#[tauri::command]
+pub fn get_mouse_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
+    use tauri::Manager;
+    
+    if let Some(window) = app.get_webview_window("action-ring") {
+        if let Ok(pos) = window.cursor_position() {
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let scale = window.scale_factor().unwrap_or(1.0);
+                let mon_pos = monitor.position();
+                
+                // คำนวณพิกัดให้ตรงกับจอ Mac (Retina) ล่วงหน้าเลย
+                let local_x = (pos.x as f64 - mon_pos.x as f64) / scale;
+                let local_y = (pos.y as f64 - mon_pos.y as f64) / scale;
+                
+                return Ok((local_x, local_y));
+            }
+        }
+    }
+    Err("Failed to get position".into())
+}

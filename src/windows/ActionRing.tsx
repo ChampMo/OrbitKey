@@ -141,7 +141,6 @@ export default function ActionRing() {
 
   useEffect(() => {
     loadData();
-    // 💥 แก้ตรงนี้: ดึงพิกัด (local_x, local_y) จาก Rust มาใช้จริงๆ ไม่ใช้ 400x400 แล้ว! 💥
     const unlistenShow = listen("ring:show", (event: any) => {
       const { local_x, local_y } = event.payload;
       setIsVisible(false); 
@@ -150,7 +149,7 @@ export default function ActionRing() {
       setHoveredChildId(null); 
       setClickedId(null);
       summonTimeRef.current = Date.now(); 
-      setCenter({ x: local_x, y: local_y }); // <-- เซ็ตพิกัดเมาส์ตรงนี้
+      setCenter({ x: local_x, y: local_y }); 
       setAnimKey(k => k + 1);
       requestAnimationFrame(() => setIsVisible(true));
     });
@@ -165,48 +164,70 @@ export default function ActionRing() {
     return () => { unlistenShow.then(f => f()); unlistenHide.then(f => f()); unlistenKeyReleased.then(f => f()); unlistenSwitchProfile.then(f => f()); };
   }, []);
 
+  // 💥 ท่าไม้ตายสุดท้าย: Polling พิกัดเมาส์ทะลุระบบความปลอดภัยของ macOS 💥
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (clickedId !== null || !isVisible) return;
-      const dx = e.clientX - center.x; const dy = e.clientY - center.y;
-      const dist = Math.sqrt(dx * dx + dy * dy); const angle = Math.atan2(dy, dx);
-      
-      if (dist < DEAD_ZONE) { 
-        setHoveredMainId(null); setHoveredChildId(null); return; 
-      }
+    // ถ้าหน้าต่างปิดอยู่ หรือกดคลิกไปแล้ว ไม่ต้องอ่านพิกัดให้เปลือง CPU
+    if (!isVisible || clickedId !== null) return;
 
-      if (hoveredMainId && dist > R_MAIN + (40 * scaleMult)) {
-        const folder = slices.find(s => s.id === hoveredMainId);
-        if (folder?.children && folder.children.length > 0) {
-          const folderIdx = slices.findIndex(s => s.id === hoveredMainId);
-          const parentAngle = -Math.PI / 2 + (folderIdx * 2 * Math.PI) / slices.length;
-          const step = Math.PI / 6.5; const startAngle = parentAngle - ((folder.children.length - 1) * step) / 2;
-          let closestIdx = -1; let minDiff = Infinity;
-          folder.children.forEach((_, i) => {
-            const childAngle = startAngle + i * step; const diff = Math.abs(Math.atan2(Math.sin(angle - childAngle), Math.cos(angle - childAngle)));
-            if (diff < minDiff) { minDiff = diff; closestIdx = i; }
-          });
-          if (minDiff < step / 1.5) { setHoveredChildId(folder.children[closestIdx].id); return; }
-        }
-      }
+    let isPolling = false;
 
-      if (slices.length > 0 && dist <= R_MAIN + (45 * scaleMult)) {
-        setHoveredChildId(null);
-        const step = (2 * Math.PI) / slices.length; const origin = -Math.PI / 2 - step / 2;
-        const normalised = (((angle - origin) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        const idx = Math.min(Math.floor(normalised / step), slices.length - 1);
+    const timer = setInterval(async () => {
+      if (isPolling) return;
+      isPolling = true;
+
+      try {
+        // 💥 เรียกคำสั่ง Rust ที่เราเพิ่งสร้าง มันจะคืนค่ากลับมาเป็น Array [x, y] เป๊ะๆ!
+        const [mouseX, mouseY] = await invoke<[number, number]>("get_mouse_position");
         
-        if (hoveredMainId !== slices[idx].id) setHoveredMainId(slices[idx].id);
+        const dx = mouseX - center.x; 
+        const dy = mouseY - center.y;
+        const dist = Math.sqrt(dx * dx + dy * dy); 
+        const angle = Math.atan2(dy, dx);
+        
+        if (dist < DEAD_ZONE) { 
+          setHoveredMainId(null); 
+          setHoveredChildId(null); 
+        } else if (hoveredMainId && dist > R_MAIN + (40 * scaleMult)) {
+          const folder = slices.find(s => s.id === hoveredMainId);
+          if (folder?.children && folder.children.length > 0) {
+            const folderIdx = slices.findIndex(s => s.id === hoveredMainId);
+            const parentAngle = -Math.PI / 2 + (folderIdx * 2 * Math.PI) / slices.length;
+            const step = Math.PI / 6.5; 
+            const startAngle = parentAngle - ((folder.children.length - 1) * step) / 2;
+            let closestIdx = -1; 
+            let minDiff = Infinity;
+            folder.children.forEach((_, i) => {
+              const childAngle = startAngle + i * step; 
+              const diff = Math.abs(Math.atan2(Math.sin(angle - childAngle), Math.cos(angle - childAngle)));
+              if (diff < minDiff) { minDiff = diff; closestIdx = i; }
+            });
+            if (minDiff < step / 1.5) { setHoveredChildId(folder.children[closestIdx].id); }
+          }
+        } else if (slices.length > 0 && dist <= R_MAIN + (45 * scaleMult)) {
+          setHoveredChildId(null);
+          const step = (2 * Math.PI) / slices.length; 
+          const origin = -Math.PI / 2 - step / 2;
+          const normalised = (((angle - origin) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          const idx = Math.min(Math.floor(normalised / step), slices.length - 1);
+          
+          if (hoveredMainId !== slices[idx].id) setHoveredMainId(slices[idx].id);
+        }
+      } catch (e) {
+        // เงียบไว้เผื่อจังหวะหน้าต่างกำลังปิด
+      } finally {
+        isPolling = false;
       }
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+    }, 16); // 16ms = ทำงานที่ 60 เฟรมต่อวินาที (ลื่นๆ ไม่หน่วง)
+
+    return () => clearInterval(timer);
   }, [slices, hoveredMainId, clickedId, center, isVisible, DEAD_ZONE, R_MAIN, scaleMult]);
 
+
   return (
-    // 💥 แก้ตรงนี้: เปลี่ยนจาก w-[800px] h-[800px] เป็น w-screen h-screen เพื่อให้รองรับโหมด Fullscreen! 💥
+    // 💥 ใส่สีดำโปร่งใส 1% เพื่อกันเหนียวให้ macOS ยอมส่ง Event การคลิก (MouseUp) มาให้เรา 💥
     <div 
       className="fixed inset-0 w-screen h-screen select-none overflow-hidden" 
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.01)" }}
       onMouseUp={() => { 
         if(hoveredMainId || hoveredChildId) executeAction(hoveredMainId, hoveredChildId); 
         else invoke("hide_action_ring").catch(console.error); 
