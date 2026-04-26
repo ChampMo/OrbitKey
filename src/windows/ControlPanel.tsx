@@ -20,7 +20,7 @@ import {
   MoreHorizontal,
   CheckCircle2
 } from "lucide-react";
-
+import { getVersion } from '@tauri-apps/api/app';
 import SettingsPanel from "./SettingsPanel";
 import ProTipModal from "./components/ProTipModal";
 import SliceEditor from "./components/SliceEditor";
@@ -116,7 +116,7 @@ export default function ControlPanel() {
   const [future, setFuture] = useState<ApiProfile[][]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
+  const [appVersion, setAppVersion] = useState('');
   const [activeProfileIndex, setActiveProfileIndex] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
@@ -212,6 +212,10 @@ export default function ControlPanel() {
       message: '',
       type: 'error' as 'error' | 'success' | 'info'
     });
+
+  useEffect(() => {
+    getVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -1304,6 +1308,14 @@ export default function ControlPanel() {
         activeTheme={activeTheme}
         onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
       />
+      <div className="absolute bottom-6 left-8 flex items-center gap-2 opacity-30 transition-opacity duration-300">
+  <div className={`w-1.5 h-1.5 rounded-full ${activeTheme.isDark ? 'bg-green-400' : 'bg-green-600'}`} />
+  <p className={`text-[10px] font-bold tracking-widest uppercase ${
+    activeTheme.isDark ? 'text-white' : 'text-zinc-900'
+  }`}>
+    v{appVersion || '0.1.0'}
+  </p>
+</div>
     </div>
   );
 }

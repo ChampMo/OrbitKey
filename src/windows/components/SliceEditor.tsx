@@ -5,6 +5,10 @@ import { ICON_MAP, ICON_LIST } from "../IconMap";
 import { ApiSlice, ActionTypeValue, ACCENT_PALETTE, ApiProfile } from "../ControlPanel";
 import { ThemeStyle } from "../Theme";
 import { invoke } from "@tauri-apps/api/core"; 
+import tagsData from 'lucide-static/tags.json'; // 💥 อย่าลืมติดตั้ง npm install lucide-static ด้วยนะครับ
+
+// 💥 ฟังก์ชันช่วยแปลงชื่อไอคอนสำหรับการหา Tags
+const toKebabCase = (str: string) => str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
 const ACTION_TYPE_LABELS: Record<ActionTypeValue, string> = {
   shortcut: "Shortcut", launch: "Launch", script: "Script", folder: "Folder",
@@ -84,7 +88,6 @@ export default function SliceEditor({
 
   const sliceRef = useRef(slice);
 
-  // 💥 Reset state safely when slice changes
   useEffect(() => { 
     sliceRef.current = slice; 
   }, [slice]);
@@ -96,7 +99,6 @@ export default function SliceEditor({
     setIconDisplayLimit(100);
   }, [slice.id]);
 
-  // 💥 ล้างความจำ Macro เก่าทิ้งเมื่อเปลี่ยน Action Type (กันจอขาว)
   useEffect(() => {
     setLiveMacro(null);
   }, [slice.actionType]);
@@ -105,6 +107,7 @@ export default function SliceEditor({
   useEffect(() => { if (showIconPicker) { setIconSearchQuery(""); setIconDisplayLimit(100); } }, [showIconPicker]);
   useEffect(() => { if (isRecording) actionInputRef.current?.focus(); }, [isRecording]);
   useEffect(() => { if (showIconPicker && iconSearchInputRef.current) {iconSearchInputRef.current.focus();}}, [showIconPicker]);
+  
   const set = useCallback(<K extends keyof ApiSlice>(key: K, value: ApiSlice[K]) =>
       onChange({ ...sliceRef.current, [key]: value }), [onChange]);
 
@@ -331,7 +334,6 @@ export default function SliceEditor({
     }
   };
 
-  // --- Safe Filtering & Data Handling ---
   const focusClass = activeTheme.isDark 
     ? "focus:border-white/40 focus:ring-1 focus:ring-white/20" 
     : "focus:border-black/40 focus:ring-1 focus:ring-black/10";
@@ -414,7 +416,7 @@ export default function SliceEditor({
               className={`w-full bg-transparent border ${activeTheme.border} rounded-xl px-4 py-2.5 text-sm text-current focus:outline-none transition-all placeholder-current placeholder-opacity-30 ${focusClass}`} 
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 relative">
             <label className="block text-[10px] font-bold opacity-50 uppercase tracking-widest text-center text-current">Icon</label>
             <button 
               type="button"
@@ -423,26 +425,24 @@ export default function SliceEditor({
                 showIconPicker ? `border-current shadow-lg ${activeTheme.isDark ? 'bg-white/10' : 'bg-black/5'}` : `bg-transparent ${activeTheme.border} opacity-70 hover:opacity-100`
               }`}
             >
-              {/* 💥 2. ลบ typeof === 'function' ออก แล้วเรียกใช้ตรงๆ เลย */}
               <CurrentIcon size={20} strokeWidth={2.5} />
             </button>
-            {/* 💥 Icon Picker พร้อมระบบป้องกัน Component ปลอมพาจอขาว 💥 */}
+            
+            {/* 💥 Icon Picker - แก้ไขระบบกรอง Tags แล้ว 💥 */}
             {showIconPicker && (
-              <div className={`absolute top-[260px] right-8 z-[100] p-4 border rounded-2xl shadow-2xl w-[320px] animate-in zoom-in-95 duration-200 ${activeTheme.panel} ${activeTheme.border} backdrop-blur-2xl`}>
-                {/* ช่องค้นหาไอคอน */}
+              <div className={`absolute top-full mt-2 right-0 z-[100] p-4 border rounded-2xl shadow-2xl w-[320px] animate-in zoom-in-95 duration-200 ${activeTheme.panel} ${activeTheme.border} backdrop-blur-2xl`}>
                 <div className="mb-3 relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-current" />
                   <input 
                     ref={iconSearchInputRef}
                     type="text" 
-                    placeholder="Search icons..." 
+                    placeholder="Search icons (e.g. ai, web, edit)..." 
                     value={iconSearchQuery}
                     onChange={(e) => setIconSearchQuery(e.target.value)}
                     className={`w-full pl-9 pr-3 py-2 text-xs rounded-lg border ${activeTheme.border} bg-transparent focus:outline-none transition-all placeholder-current placeholder-opacity-30 text-current ${focusClass}`}
                   />
                 </div>
 
-                {/* ลิสต์ไอคอน */}
                 <div 
                   className="grid grid-cols-6 gap-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar"
                   onScroll={(e) => {
@@ -451,18 +451,24 @@ export default function SliceEditor({
                   }}
                 >
                   {(() => {
-                    // กรองไอคอน
-                    const filteredIcons = ICON_LIST.filter(iconName => 
-                      iconName.toLowerCase().includes(iconSearchQuery.toLowerCase()) &&
-                      !['createLucideIcon', 'defaultAttributes', 'IconAliases', 'icons'].includes(iconName)
-                    );
+                    // กรองไอคอนด้วยชื่อ และ Tags
+                    const query = iconSearchQuery.toLowerCase();
+                    const filteredIcons = ICON_LIST.filter(iconName => {
+                      if (['createLucideIcon', 'defaultAttributes', 'IconAliases', 'icons'].includes(iconName)) return false;
+                      
+                      const matchName = iconName.toLowerCase().includes(query);
+                      const kebabName = toKebabCase(iconName);
+                      // @ts-ignore
+                      const tags: string[] = tagsData[kebabName] || [];
+                      const matchTags = tags.some(tag => tag.toLowerCase().includes(query));
+
+                      return matchName || matchTags;
+                    });
 
                     if (filteredIcons.length === 0) return <div className="col-span-6 text-center text-xs opacity-50 py-4 text-current">No icons found.</div>;
                     
                     return filteredIcons.slice(0, iconDisplayLimit).map((iconName) => {
                       const IconComp = ICON_MAP[iconName];
-
-                      // 💥 เช็คความชัวร์ครั้งสุดท้ายก่อนวาด (Double Check) 💥
                       if (!IconComp) return null;
 
                       return (
@@ -477,7 +483,6 @@ export default function SliceEditor({
                               : `opacity-60 hover:opacity-100 ${activeTheme.isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`
                           }`}
                         >
-                          {/* ใช้ React.createElement เพื่อความเสถียรสูงสุด */}
                           <IconComp size={18} />
                         </button>
                       );
@@ -571,7 +576,6 @@ export default function SliceEditor({
                   <div className="text-center text-xs opacity-50 p-4 text-current">No applications found.</div>
                 ) : (
                   <>
-                    {/* 💥 กันพัง: ตรวจสอบ app ก่อน map 💥 */}
                     {filteredApps.slice(0, appDisplayLimit).map((app, index) => {
                       if (!app || !app.path) return null;
                       return (
@@ -677,7 +681,6 @@ export default function SliceEditor({
                </div>
 
                <div className="space-y-2">
-                 {/* 💥 กันพังขั้นสุด: เช็ค step ว่าต้องเป็น Object และมี Type เสมอ 💥 */}
                  {displayMacro.map((step, idx) => {
                    if (!step || typeof step !== 'object') return null;
                    const stepType = step.type || "unknown";

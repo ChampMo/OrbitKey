@@ -220,7 +220,7 @@ export default function SystemDataSettings({
             {isUpdating ? (
               <><Loader2 size={14} className="animate-spin" /> Updating...</>
             ) : (
-              availableUpdate ? 'Update' : 'Check'
+              availableUpdate ? 'Update' : 'Check Update'
             )}
           </button>
         </div>
