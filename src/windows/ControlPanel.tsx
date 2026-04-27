@@ -30,6 +30,8 @@ import { check } from '@tauri-apps/plugin-updater';
 import UpdateModal from './components/UpdateModal';
 import { ThemeId, THEMES } from "./Theme";
 import Alert from "./components/Alert";
+import SplashScreen from "./components/SplashScreen"; // นำเข้า Component
+
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 export type ActionTypeValue = 
   | "shortcut" 
@@ -43,6 +45,8 @@ export type ActionTypeValue =
   | "multi_action"
   | "open_app" 
   | "open_control_panel";
+
+
 
 export interface ApiSlice {
   id: string;
@@ -217,14 +221,25 @@ export default function ControlPanel() {
     getVersion().then(setAppVersion);
   }, []);
 
+  // ค้นหา useEffect ที่โหลดข้อมูล (บรรทัดประมาณ 185)
   useEffect(() => {
+    const startLoad = Date.now();
+    
     Promise.all([
       invoke<ApiProfile[]>("get_profiles").catch(() => null),
       invoke<any>("get_settings").catch(() => null)
     ]).then(([data, settings]) => {
       if (data) setProfiles(data);
       if (settings) setConfig(settings);
-      setLoading(false);
+      
+      // คำนวณเวลาที่ใช้โหลดไป ถ้าเร็วกว่า 2 วินาที ให้รอจนครบ 2 วินาทีค่อยเปิดเข้าแอป
+      const elapsed = Date.now() - startLoad;
+      const minWait = 2000; // 2 วินาที
+      
+      setTimeout(() => {
+        setLoading(false);
+      }, Math.max(0, minWait - elapsed));
+      
     }).catch((e) => {
       setLoadError(String(e));
       setLoading(false);
@@ -916,12 +931,10 @@ export default function ControlPanel() {
     return elements;
   };
 
-  if (loading)
-    return (
-      <div className="h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">
-        Loading Configuration...
-      </div>
-    );
+  if (loading) {
+    const loadingTheme = config ? THEMES[config.theme] : THEMES.dark;
+    return <SplashScreen theme={loadingTheme} />;
+  }
   if (loadError)
     return (
       <div className="h-screen bg-zinc-950 flex items-center justify-center text-red-400">

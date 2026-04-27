@@ -105,7 +105,7 @@ const ReportBug: React.FC<ReportBugProps> = ({ isOpen, onClose, currentTheme }) 
                     Report Sent Successfully!
                 </h3>
                 <p className="text-sm font-medium opacity-60">
-                    Thanks for the feedback, Champ! 🚀
+                    Thanks for the feedback! 🚀
                 </p>
                 </div>
 

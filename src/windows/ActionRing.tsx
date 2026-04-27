@@ -273,13 +273,13 @@ export default function ActionRing() {
               <div className={`absolute flex items-center justify-center rounded-full shadow-xl ${active ? activeTheme.ringColor : ""}`}
                    style={{ width: size, height: size, left: nx, top: ny, transform: `translate(-50%, -50%) scale(${isVisible ? 1 : animType === 'instant' ? 1 : 0})`,
                             opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
-                            backgroundColor: active ? (slice.color || "#6366f1") : (activeTheme.isDark ? "#27272a" : "#e4e4e7"), 
-                            color: active ? "white" : activeTheme.isDark ? "#d4d4d8" : "#3f3f46",
+                            backgroundColor: active ? (slice.color || "#6366f1") : ("#e4e4e7"), 
+                            color: active ? "white" : "#3f3f46",
                             zIndex: active ? 30 : 20, transition: itemTransition, transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms" }}>
                 <Icon size={active ? 28 * scaleMult : 22 * scaleMult} strokeWidth={active ? 2.5 : 3} />
               </div>
               
-              <div className={`absolute px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-widest rounded-full border backdrop-blur-md whitespace-nowrap transition-all duration-200 pointer-events-none shadow-xl ${activeTheme.panel} ${activeTheme.border} ${activeTheme.text}`}
+              <div className={`absolute z-50 px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-widest rounded-full border backdrop-blur-md whitespace-nowrap transition-all duration-200 pointer-events-none shadow-xl ${activeTheme.panel} ${activeTheme.border} ${activeTheme.text}`}
                    style={{ left: nx, top: ny - (48 * scaleMult), transform: "translate(-50%, -50%)", opacity: active && !hoveredChildId ? 1 : 0, boxShadow: slice.color ? `0 6px 20px ${slice.color}40` : '' }}>
                 {slice.label}
               </div>
@@ -336,8 +336,8 @@ export default function ActionRing() {
                            left: currentX, top: currentY, 
                            transform: `translate(-50%, -50%) scale(${currentScale})`,
                            opacity: currentOpacity,
-                           backgroundColor: active && isFolderOpen ? (child.color || "#6366f1") : (activeTheme.isDark ? "#3f3f46" : "#f4f4f5"), 
-                           color: active && isFolderOpen ? "white" : activeTheme.isDark ? "#d4d4d8" : "#71717a",
+                           backgroundColor: active && isFolderOpen ? (child.color || "#6366f1") : ( "#f4f4f5"), 
+                           color: active && isFolderOpen ? "white" :  "#3f3f46",
                            transition: itemTransition,
                            transitionDelay: (isFolderOpen && animType === "spring") ? `${i * 30}ms` : "0ms" 
                          }}>

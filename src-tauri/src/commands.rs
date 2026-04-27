@@ -14,7 +14,9 @@ use std::process::Command;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_dialog::DialogExt; // สำหรับ Tauri v2 Dialog
+use tauri_plugin_dialog::DialogExt;
+use lettre::message::header::ContentType;
+
 
 #[derive(Deserialize)]
 struct MacroStep {
@@ -538,42 +540,60 @@ pub fn show_control_panel(handle: tauri::AppHandle) {
     }
 }
 
-#[tauri::command]
-pub async fn send_bug_report(user_email: String, description: String) -> Result<String, String> {
-    // 💥 พยายามโหลดจากหลายที่เพื่อความชัวร์
-    dotenvy::dotenv().ok(); // ลองโหลดจากที่ปัจจุบัน
-    dotenvy::from_path(Path::new(".env")).ok(); // ลองโหลดจากรูท
-    dotenvy::from_path(Path::new("src-tauri/.env")).ok(); // ลองโหลดจากโฟลเดอร์ tauri
 
-    // ดึงค่าออกมา ถ้าไม่ได้ให้บอก Error ที่ชัดเจนขึ้น
+
+#[tauri::command]
+pub async fn send_bug_report(
+    app: tauri::AppHandle, // 💥 เพิ่ม AppHandle เข้ามาเพื่อดึงเวอร์ชันแอป
+    user_email: String, 
+    description: String
+) -> Result<String, String> {
+    
+    dotenvy::dotenv().ok();
+    dotenvy::from_path(std::path::Path::new(".env")).ok();
+    dotenvy::from_path(std::path::Path::new("src-tauri/.env")).ok();
+
     let smtp_email =
         std::env::var("SMTP_EMAIL").map_err(|_| "Error: SMTP_EMAIL not found in environment")?;
     let smtp_password = std::env::var("SMTP_PASSWORD")
         .map_err(|_| "Error: SMTP_PASSWORD not found in environment")?;
 
-    let email_body = format!(
-        "New Bug Report from OrbitKey\n\nFrom: {}\nDescription:\n{}",
-        user_email, description
-    );
+    // 💥 ดึงข้อมูลระบบที่จำเป็น
+    let app_version = app.package_info().version.to_string(); // เวอร์ชันแอป (ดึงจาก tauri.conf.json)
+    let os_name = std::env::consts::OS; // ได้ค่าเป็น "macos", "windows", "linux"
+    let os_arch = std::env::consts::ARCH; // ได้ค่าเป็น "x86_64", "aarch64" (เอาไว้ดูว่าเป็น Intel หรือ Apple Silicon)
 
-    let email = Message::builder()
+    // โหลดไฟล์ HTML Template
+    let template = include_str!("email_template.html");
+
+    // 💥 แทนที่ตัวแปรใน HTML ด้วยข้อมูลทั้งหมด
+    let html_body = template
+        .replace("{{user_email}}", &user_email)
+        .replace("{{description}}", &description)
+        .replace("{{app_version}}", &app_version)
+        .replace("{{os_name}}", os_name)
+        .replace("{{os_arch}}", os_arch);
+
+    let email = lettre::Message::builder()
         .from(
             format!("OrbitKey Reporter <{}>", smtp_email)
                 .parse()
                 .unwrap(),
         )
         .to("sonesambidev@gmail.com".parse().unwrap())
-        .subject("OrbitKey Bug Report 🚀")
-        .body(email_body)
+        .subject(format!("OrbitKey Bug Report (v{}) 🚀", app_version)) // แอบใส่เวอร์ชันในหัวข้ออีเมลด้วย
+        .header(ContentType::TEXT_HTML)
+        .body(html_body)
         .map_err(|e| e.to_string())?;
 
-    let creds = Credentials::new(smtp_email, smtp_password);
+    let creds = lettre::transport::smtp::authentication::Credentials::new(smtp_email, smtp_password);
 
-    let mailer = SmtpTransport::relay("smtp.gmail.com")
+    let mailer = lettre::SmtpTransport::relay("smtp.gmail.com")
         .unwrap()
         .credentials(creds)
         .build();
 
+    use lettre::Transport;
     match mailer.send(&email) {
         Ok(_) => Ok("Success".into()),
         Err(e) => Err(format!("Error: {e}")),

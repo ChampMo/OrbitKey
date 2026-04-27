@@ -257,3 +257,23 @@ html.action-ring-window svg {
 .animate-dot-pulse {
     animation: dot-pulse 1.6s ease-in-out infinite;
 }
+
+
+@keyframes progress-loading {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-progress-loading {
+  width: 100%;
+  animation: progress-loading 2s infinite ease-in-out;
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s infinite ease-in-out;
+}
