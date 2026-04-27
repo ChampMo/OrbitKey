@@ -82,8 +82,6 @@ To achieve instinct-level speed, OrbitKey doesn't rely on standard HTML button h
 
 ## 🎨 Theme Customization
 
-> **💡 คำแนะนำสำหรับแชมป์:** ตรงนี้เอารูปตอนที่คุณเปลี่ยนสีแอป (แคปหน้า Control Panel ในโหมด Dark Mode รูปนึง เทียบกับโหมด Peach Milk หรือสีสว่างๆ อีกรูปนึงครับ)
-
 <div align="center">
   <table>
     <tr>
