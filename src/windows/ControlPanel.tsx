@@ -119,6 +119,7 @@ export default function ControlPanel() {
   const [past, setPast] = useState<ApiProfile[][]>([]);
   const [future, setFuture] = useState<ApiProfile[][]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState('');
   const [activeProfileIndex, setActiveProfileIndex] = useState(0);
@@ -223,23 +224,23 @@ export default function ControlPanel() {
 
   // ค้นหา useEffect ที่โหลดข้อมูล (บรรทัดประมาณ 185)
   useEffect(() => {
-    const startLoad = Date.now();
-    
+    const startLoad = Date.now(); // จับเวลาตอนเริ่มโหลด
+
     Promise.all([
       invoke<ApiProfile[]>("get_profiles").catch(() => null),
       invoke<any>("get_settings").catch(() => null)
     ]).then(([data, settings]) => {
       if (data) setProfiles(data);
       if (settings) setConfig(settings);
-      
-      // คำนวณเวลาที่ใช้โหลดไป ถ้าเร็วกว่า 2 วินาที ให้รอจนครบ 2 วินาทีค่อยเปิดเข้าแอป
+
+      // 💥 บังคับให้โชว์หน้า Intro อย่างน้อย 1.5 วินาที
       const elapsed = Date.now() - startLoad;
-      const minWait = 2000; // 2 วินาที
+      const minWait = 1500;
       
       setTimeout(() => {
-        setLoading(false);
+        setLoading(false); // บอกว่าโหลดเสร็จแล้วนะ (แต่หน้า Splash จะเริ่มเฟดออกก่อน)
       }, Math.max(0, minWait - elapsed));
-      
+
     }).catch((e) => {
       setLoadError(String(e));
       setLoading(false);
@@ -931,9 +932,15 @@ export default function ControlPanel() {
     return elements;
   };
 
-  if (loading) {
+if (showSplash) {
     const loadingTheme = config ? THEMES[config.theme] : THEMES.dark;
-    return <SplashScreen theme={loadingTheme} />;
+    return (
+      <SplashScreen 
+        theme={loadingTheme} 
+        isReady={!loading} // เมื่อ loading เป็น false แปลว่าพร้อมแล้ว ให้เริ่มเฟดออก
+        onComplete={() => setShowSplash(false)} // พอมันจางหายไปจนสุดแล้ว ค่อยลบทิ้ง
+      />
+    );
   }
   if (loadError)
     return (

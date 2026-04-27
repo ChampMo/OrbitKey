@@ -1,16 +1,70 @@
-  [{
+[
+  {
     "id": "default-profile-global",
-    "name": "Global",
+    "name": "Default",
     "appMatcher": null,
-    "isDefault": true,
+    "isDefault": false,
     "slices": [
       {
-        "id": "slice-browser",
-        "label": "Web Browser",
-        "icon": "Globe",
-        "color": "#4285f4",
-        "actionType": "launch",
-        "actionData": "https://www.google.com"
+        "id": "q7som6snj",
+        "label": "Media Kit",
+        "icon": "Music",
+        "color": "#ec4899",
+        "actionType": "folder",
+        "actionData": null,
+        "scriptArgs": [],
+        "children": [
+          {
+            "id": "kfwjkyijo",
+            "label": "Previous",
+            "icon": "ChevronsLeft",
+            "color": "#93c5fd",
+            "actionType": "media",
+            "actionData": "media_prev",
+            "scriptArgs": [],
+            "children": []
+          },
+          {
+            "id": "cecovfory",
+            "label": "Volume Down",
+            "icon": "Volume1",
+            "color": "#bef264",
+            "actionType": "media",
+            "actionData": "volume_down",
+            "scriptArgs": [],
+            "children": []
+          },
+          {
+            "id": "8ajijuofa",
+            "label": "Play / Pause",
+            "icon": "Play",
+            "color": "#10b981",
+            "actionType": "media",
+            "actionData": "media_play_pause",
+            "scriptArgs": [],
+            "children": null
+          },
+          {
+            "id": "zh96x1a2j",
+            "label": "Volume Up",
+            "icon": "Volume2Icon",
+            "color": "#0ea5e9",
+            "actionType": "media",
+            "actionData": "volume_up",
+            "scriptArgs": [],
+            "children": null
+          },
+          {
+            "id": "r49kixt8l",
+            "label": "Next",
+            "icon": "ChevronsRightIcon",
+            "color": "#f59e0b",
+            "actionType": "media",
+            "actionData": "media_next",
+            "scriptArgs": [],
+            "children": []
+          }
+        ]
       },
       {
         "id": "slice-clipboard-folder",
@@ -18,6 +72,8 @@
         "icon": "Clipboard",
         "color": "#10b981",
         "actionType": "folder",
+        "actionData": null,
+        "scriptArgs": [],
         "children": [
           {
             "id": "clip-copy",
@@ -25,7 +81,9 @@
             "icon": "Copy",
             "color": "#4285f4",
             "actionType": "shortcut",
-            "actionData": "cmd+c"
+            "actionData": "ctrl+c",
+            "scriptArgs": [],
+            "children": null
           },
           {
             "id": "clip-paste",
@@ -33,7 +91,9 @@
             "icon": "Clipboard",
             "color": "#10b981",
             "actionType": "shortcut",
-            "actionData": "cmd+v"
+            "actionData": "ctrl+v",
+            "scriptArgs": [],
+            "children": null
           },
           {
             "id": "clip-undo",
@@ -41,7 +101,9 @@
             "icon": "RotateCcw",
             "color": "#f43f5e",
             "actionType": "shortcut",
-            "actionData": "cmd+z"
+            "actionData": "ctrl+z",
+            "scriptArgs": [],
+            "children": null
           }
         ]
       },
@@ -51,32 +113,19 @@
         "icon": "Camera",
         "color": "#8b5cf6",
         "actionType": "shortcut",
-        "actionData": "cmd+shift+4"
+        "actionData": "shift+cmd+s",
+        "scriptArgs": [],
+        "children": null
       },
       {
-        "id": "slice-media-folder",
-        "label": "Media Kit",
-        "icon": "Music",
-        "color": "#ec4899",
-        "actionType": "folder",
-        "children": [
-          {
-            "id": "media-pp",
-            "label": "Play / Pause",
-            "icon": "Play",
-            "color": "#10b981",
-            "actionType": "media",
-            "actionData": "media_play_pause"
-          },
-          {
-            "id": "media-vol-up",
-            "label": "Volume Up",
-            "icon": "Volume2",
-            "color": "#0ea5e9",
-            "actionType": "media",
-            "actionData": "volume_up"
-          }
-        ]
+        "id": "slice-macro-work",
+        "label": "Work Mode",
+        "icon": "LucideSettings",
+        "color": "#f59e0b",
+        "actionType": "open_control_panel",
+        "actionData": "",
+        "scriptArgs": [],
+        "children": null
       },
       {
         "id": "slice-system-lock",
@@ -84,15 +133,40 @@
         "icon": "Lock",
         "color": "#64748b",
         "actionType": "system",
-        "actionData": "sys_lock"
+        "actionData": "sys_lock",
+        "scriptArgs": [],
+        "children": null
       },
       {
-        "id": "slice-macro-work",
-        "label": "Work Mode",
-        "icon": "Zap",
-        "color": "#f59e0b",
-        "actionType": "multi_action",
-        "actionData": "[{\"type\":\"launch\",\"data\":\"https://calendar.google.com\"},{\"type\":\"delay\",\"data\":\"500\"},{\"type\":\"launch\",\"data\":\"https://chat.openai.com\"}]"
+        "id": "guy2uzchz",
+        "label": "Search Engines",
+        "icon": "LucideSearch",
+        "color": "#6ee7b7",
+        "actionType": "folder",
+        "actionData": "[]",
+        "scriptArgs": [],
+        "children": [
+          {
+            "id": "vt2q6uzer",
+            "label": "Gemini",
+            "icon": "Bot",
+            "color": "#f43f5e",
+            "actionType": "launch",
+            "actionData": "https://gemini.google.com",
+            "scriptArgs": [],
+            "children": []
+          },
+          {
+            "id": "slice-browser",
+            "label": "Google",
+            "icon": "Globe",
+            "color": "#4285f4",
+            "actionType": "launch",
+            "actionData": "https://www.google.com",
+            "scriptArgs": [],
+            "children": null
+          }
+        ]
       }
     ]
   }

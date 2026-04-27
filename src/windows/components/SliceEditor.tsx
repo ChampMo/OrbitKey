@@ -375,6 +375,20 @@ export default function SliceEditor({
     : ["shortcut", "launch", "script", "folder", "text_snippet", "media", "system", "switch_profile", "multi_action", "open_app", "open_control_panel"];
 
   const hasChildren = slice.actionType === "folder" && (slice.children?.length ?? 0) > 0;
+  const formatDisplayData = (type: string, data: string) => {
+    if (!data) return "";
+    // ถ้าเป็นลิงก์เปิดแอป หรือ สคริปต์ ไม่ต้องแปลงตัวอักษร
+    if (type !== "shortcut") return data; 
+    
+    // เช็คว่ารันบน Windows อยู่หรือไม่
+    const isWindows = navigator.userAgent.toLowerCase().includes('windows');
+    
+    if (isWindows) {
+      return data.replace(/cmd|command|meta/g, "win");
+    } else {
+      return data.replace(/win|meta/g, "cmd");
+    }
+  };
 
   return (
     <div className="min-h-full flex flex-col pt-8 px-8 pb-32 space-y-7 transition-colors duration-500 bg-transparent" onClick={() => setSelectedMacroId(null)}>
@@ -536,69 +550,91 @@ export default function SliceEditor({
         <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
           
           {/* 1. Open App Launcher */}
-          {slice.actionType === "open_app" && (
-            <div className={`w-full bg-transparent border ${activeTheme.border} rounded-xl overflow-hidden flex flex-col`} style={{ height: "420px" }}>
-              <div className={`p-3 border-b ${activeTheme.border} flex flex-col gap-3 ${activeTheme.isDark ? 'bg-white/5' : 'bg-black/5'}`}>
-                <div className="flex justify-between items-center text-current">
-                   <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">App Registry</span>
-                   <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-500">{selectedPaths.length} Selected</span>
-                </div>
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-current" />
-                  <input 
-                    type="text" 
-                    placeholder="Search applications..." 
-                    value={appSearchQuery}
-                    onChange={(e) => setAppSearchQuery(e.target.value)}
-                    className={`w-full pl-9 pr-3 py-2 text-xs rounded-lg border ${activeTheme.border} bg-transparent focus:outline-none transition-all placeholder-current placeholder-opacity-30 text-current ${focusClass}`}
-                  />
-                </div>
-              </div>
+          {slice.actionType === "multi_action" && (
+             <div 
+               className={`w-full space-y-3 pt-5 px-5 pb-10 border rounded-2xl animate-in fade-in duration-300 transition-colors ${activeTheme.isDark ? 'bg-black/20 border-white/10' : 'bg-white/40 border-black/10 shadow-sm'}`}
+               onClick={(e) => e.stopPropagation()}
+             >
+               <div className={`flex items-center justify-between mb-2 pb-3 border-b ${activeTheme.isDark ? 'border-white/10' : 'border-black/10'}`}>
+                 <h4 className="text-[11px] font-bold text-orange-500 uppercase tracking-widest flex items-center gap-2">
+                   <LayoutGrid size={14} /> Macro Sequence
+                 </h4>
+                 <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${activeTheme.isDark ? 'text-zinc-400 bg-white/10' : 'text-zinc-600 bg-black/5'}`}>{displayMacro.length} Steps</span>
+               </div>
 
-              {selectedPaths.length > 0 && (
-                <div className={`p-3 border-b ${activeTheme.border} flex flex-wrap gap-2 max-h-[100px] overflow-y-auto custom-scrollbar ${activeTheme.isDark ? 'bg-black/20' : 'bg-white/40'}`}>
-                  {selectedPaths.map((path, index) => (
-                    <div key={`sel-${index}`} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold ${activeTheme.isDark ? 'bg-white/10 text-zinc-300' : 'bg-black/5 text-zinc-700 border border-black/10'}`}>
-                      <span className="truncate max-w-[120px]">{getAppName(path)}</span>
-                      <button type="button" onClick={() => removeApp(path)} className="p-0.5 hover:bg-red-500/20 hover:text-red-500 rounded transition-colors"><X size={10} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
+               <div className="space-y-2">
+                 {displayMacro.map((step, idx) => {
+                   if (!step || typeof step !== 'object') return null;
+                   const stepType = step.type || "unknown";
+                   
+                   return (
+                     <div 
+                       key={step.id || `macro-${idx}`} 
+                       data-step-id={step.id}
+                       onClick={(e) => { e.stopPropagation(); setSelectedMacroId(step.id); }}
+                       className={`flex items-center gap-3 border rounded-xl p-2.5 group transition-all duration-200 ease-out cursor-default
+                         ${draggedMacroId === step.id ? "opacity-0 scale-95" : "opacity-100 scale-100"}
+                         ${copiedFlashId === step.id ? "border-emerald-500 bg-emerald-500/10 shadow-lg" : 
+                           selectedMacroId === step.id ? "border-indigo-500 bg-indigo-500/5 shadow-md" : `${activeTheme.panel} ${activeTheme.border} hover:border-current`}
+                       `}
+                     >
+                       <div className="flex flex-col items-center justify-center w-8 shrink-0">
+                         <span className={`text-[8px] font-black mb-1 px-1.5 py-0.5 rounded ${activeTheme.isDark ? 'bg-white/10 text-zinc-400' : 'bg-black/5 text-zinc-500'}`}>#{idx + 1}</span>
+                         {stepType === "delay" ? <Clock size={14} className="text-blue-500" /> :
+                          stepType === "shortcut" ? <Zap size={14} className="text-indigo-500" /> :
+                          stepType === "text_snippet" ? <LayoutGrid size={14} className="text-emerald-500" /> : <FolderOpen size={14} className="text-sky-500" />}
+                       </div>
+                       
+                       <div className="flex-1 flex flex-col gap-1">
+                          <span className="text-[9px] font-bold opacity-60 uppercase tracking-wider text-current">{stepType.replace("_", " ")}</span>
+                          {stepType === "delay" ? (
+                            <div className="flex items-center gap-2">
+                              <input type="number" value={step.data || ""} onChange={(e) => updateStepData(step.id, e.target.value)} placeholder="e.g. 500" className={`w-24 bg-transparent border rounded-lg px-3 py-1.5 text-xs text-current focus:outline-none transition-all font-mono ${activeTheme.border} ${focusClass}`} />
+                              <span className="text-xs opacity-50">ms</span>
+                            </div>
+                          ) : stepType === "shortcut" ? (
+                            // 💥 1. เอา formatDisplayData มาครอบตรงนี้ (step.data)
+                            <input 
+                              type="text" 
+                              value={recordingMacroId === step.id ? "Listening..." : formatDisplayData("shortcut", step.data || "")} 
+                              onClick={() => setRecordingMacroId(step.id)} 
+                              onBlur={() => setRecordingMacroId(null)} 
+                              onKeyDown={(e) => handleMacroShortcutRecord(e, step.id)} 
+                              readOnly 
+                              className={`w-full bg-transparent border rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none transition-all ${recordingMacroId === step.id ? "border-red-500 text-red-500 animate-pulse" : `${activeTheme.border} text-current`} ${focusClass}`} 
+                            />
+                          ) : (
+                            <input type="text" value={step.data || ""} onChange={(e) => updateStepData(step.id, e.target.value)} placeholder={`Enter ${stepType} data...`} className={`w-full bg-transparent border rounded-lg px-3 py-1.5 text-xs text-current focus:outline-none transition-all font-mono ${activeTheme.border} ${focusClass}`} />
+                          )}
+                       </div>
 
-              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-1 min-h-[200px]" onScroll={handleAppListScroll}>
-                {isScanningApps ? (
-                  <div className="text-center text-xs opacity-50 p-6 flex flex-col items-center gap-3 text-current">
-                    <RefreshCw size={24} className="animate-spin text-indigo-500" />
-                    Scanning System...
-                  </div>
-                ) : filteredApps.length === 0 ? (
-                  <div className="text-center text-xs opacity-50 p-4 text-current">No applications found.</div>
-                ) : (
-                  <>
-                    {filteredApps.slice(0, appDisplayLimit).map((app, index) => {
-                      if (!app || !app.path) return null;
-                      return (
-                        <label key={`app-${index}`} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${selectedPaths.includes(app.path) ? (activeTheme.isDark ? 'bg-white/10' : 'bg-black/5') : `hover:${activeTheme.isDark ? 'bg-white/5' : 'bg-black/5'}`}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedPaths.includes(app.path)}
-                            onChange={() => toggleApp(app.path)}
-                            className="w-4 h-4 rounded border-zinc-500 text-indigo-500 bg-transparent focus:ring-0 cursor-pointer"
-                          />
-                          <span className="text-sm font-medium opacity-90 truncate select-none text-current">{app.name}</span>
-                        </label>
-                      );
-                    })}
-                    {appDisplayLimit < filteredApps.length && (
-                      <div className="flex items-center justify-center gap-2 py-4 opacity-50 text-[10px] font-bold text-current">
-                        <RefreshCw size={14} className="animate-spin" /> Loading more...
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
+                       <div className="flex items-center gap-1 shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
+                         <button type="button" onClick={(e) => { e.stopPropagation(); removeStep(step.id); }} className="p-1.5 hover:bg-red-500/10 rounded-lg text-red-500 transition-colors"><Trash2 size={14} /></button>
+                         <div className="p-1.5 opacity-60 hover:opacity-100 cursor-grab active:cursor-grabbing touch-none" onPointerDown={(e) => handlePointerDown(e, step.id)}><GripVertical size={16} /></div>
+                       </div>
+                     </div>
+                   );
+                 })}
+                 
+                 {displayMacro.length === 0 && (
+                   <div className={`text-center py-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${activeTheme.isDark ? 'border-white/10 hover:border-white/30' : 'border-black/10 hover:border-black/30'}`}>
+                     <LayoutGrid size={24} className="mx-auto opacity-40 mb-2" />
+                     <p className="opacity-60 text-xs font-medium">No actions in this macro yet.</p>
+                   </div>
+                 )}
+               </div>
+
+               <div className={`pt-2 mt-4 border-t ${activeTheme.isDark ? 'border-white/10' : 'border-black/10'}`}>
+                 <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-4 mb-4 text-center text-current">Add New Step</p>
+                 <div className="flex flex-wrap justify-center gap-2">
+                   {["shortcut", "launch", "text_snippet", "delay"].map(type => (
+                     <button type="button" key={type} onClick={() => addMacroStep(type)} className={`px-3 py-2 border rounded-xl text-[10px] font-bold transition-all capitalize flex items-center gap-1.5 ${activeTheme.isDark ? 'bg-white/5 border-white/10 hover:border-orange-500/50 hover:bg-orange-500/10 text-zinc-300 hover:text-orange-400' : 'bg-black/5 border-black/10 hover:border-orange-500 hover:text-orange-600 shadow-sm'}`}>
+                       <Plus size={10} strokeWidth={3} /> {type.replace("_", " ")}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             </div>
           )}
 
           {/* 2. Open Settings (Control Panel) */}
@@ -651,22 +687,25 @@ export default function SliceEditor({
                 ref={actionInputRef} 
                 type="text" 
                 readOnly={isRecording} 
-                value={isRecording ? "Listening..." : slice.actionData || ""} 
-                onChange={(e) => set("actionData", e.target.value)} 
+                value={isRecording ? "Listening..." : formatDisplayData(slice.actionType, slice.actionData || "")}
+                onChange={(e) => set("actionData", slice.actionType === "shortcut" ? e.target.value.toLowerCase() : e.target.value)} 
+                
                 onKeyDown={handleKeyDown} 
                 placeholder={ACTION_DATA_PLACEHOLDERS[slice.actionType as keyof typeof ACTION_DATA_PLACEHOLDERS]} 
                 className={`flex-1 bg-transparent border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none transition-all placeholder-current placeholder-opacity-30 ${isRecording ? "border-red-500/50 text-red-500 ring-2 ring-red-500/20 animate-pulse" : `${activeTheme.border} text-current ${focusClass}`}`} 
               />
+              
               {slice.actionType === "shortcut" ? (
                 <button type="button" onClick={() => setIsRecording(!isRecording)} className={`px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${isRecording ? "bg-red-500/20 text-red-500 border border-red-500/30" : `bg-transparent opacity-60 hover:opacity-100 border ${activeTheme.border}`}`}>
                   {isRecording ? <X size={14} /> : <Circle size={12} className="fill-red-500 text-red-500" />} {isRecording ? "Cancel" : "Record"}
                 </button>
               ) : (
-                <button type="button" onClick={handleBrowse} className={`px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all bg-transparent opacity-60 hover:opacity-100 border ${activeTheme.border}`}><FolderOpen size={14} /> Browse</button>
+                <button type="button" onClick={handleBrowse} className={`px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all bg-transparent opacity-60 hover:opacity-100 border ${activeTheme.border}`}>
+                  <FolderOpen size={14} /> Browse
+                </button>
               )}
             </div>
           )}
-
           {/* 8. Macro Builder */}
           {slice.actionType === "multi_action" && (
              <div 

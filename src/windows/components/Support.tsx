@@ -47,7 +47,7 @@ const Support: React.FC<SupportProps> = ({ isOpen, onClose, currentTheme }) => {
             <h3 className="font-bold tracking-tight text-current">Support OrbitKey</h3>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={onClose}
             className="text-zinc-500 hover:text-current transition-colors p-1 hover:bg-white/10 rounded-full"
           >
             <X size={20} />

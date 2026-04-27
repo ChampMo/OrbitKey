@@ -152,7 +152,7 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
         };
 
         let script = if key_code != -1 {
-            // ใช้รหัสฮาร์ดแวร์ (ปลอดภัยที่สุด)
+            // ใช้รหัสฮาร์ดแวร์ (ปลอดภัยที่สุด) 
             format!(
                 "tell application \"System Events\" to key code {} {}",
                 key_code, using_clause
@@ -184,73 +184,103 @@ pub fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     }
 
     // 🪟 สำหรับ Windows / Linux ยังคงใช้ enigo ตามปกติ (เพราะระบบมันไม่โหดเท่า Mac)
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        // 💥 หน่วงเวลา 150ms ให้วงแหวนปิดตัวลง และคืน Focus ให้แอปเป้าหมายก่อน
+        std::thread::sleep(std::time::Duration::from_millis(150));
 
-        let modifiers: Vec<Key> = mod_tokens
-            .iter()
-            .map(|s| parse_modifier(s))
-            .collect::<Result<_, _>>()?;
+        // นำเข้าคำสั่งระดับลึกของ Windows
+        extern "system" {
+            fn keybd_event(bVk: u8, bScan: u8, dwFlags: u32, dwExtraInfo: usize);
+        }
+        const KEYEVENTF_KEYUP: u32 = 0x0002;
 
-        let main_key = parse_key(key_str)?;
-
-        let mut enigo = Enigo::new(&Settings::default())
-            .map_err(|e| format!("Failed to initialise input simulator: {e}"))?;
-
-        for &modifier in &modifiers {
-            let _ = enigo.key(modifier, Direction::Press);
+        let mut vk_modifiers = Vec::new();
+        for &m in mod_tokens {
+            match m {
+                "cmd" | "command" | "meta" | "win" | "super" => vk_modifiers.push(0x5B), // ปุ่ม Windows
+                "ctrl" | "control" => vk_modifiers.push(0x11), // ปุ่ม Control
+                "shift" => vk_modifiers.push(0x10), // ปุ่ม Shift
+                "alt" | "option" => vk_modifiers.push(0x12), // ปุ่ม Alt
+                _ => {}
+            }
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        // แปลงตัวอักษรเป็นรหัส Hardware Keyboard
+        let vk_key = match key_str {
+            "a" => 0x41, "b" => 0x42, "c" => 0x43, "d" => 0x44, "e" => 0x45, "f" => 0x46, 
+            "g" => 0x47, "h" => 0x48, "i" => 0x49, "j" => 0x4A, "k" => 0x4B, "l" => 0x4C, 
+            "m" => 0x4D, "n" => 0x4E, "o" => 0x4F, "p" => 0x50, "q" => 0x51, "r" => 0x52, 
+            "s" => 0x53, "t" => 0x54, "u" => 0x55, "v" => 0x56, "w" => 0x57, "x" => 0x58, 
+            "y" => 0x59, "z" => 0x5A,
+            "0" => 0x30, "1" => 0x31, "2" => 0x32, "3" => 0x33, "4" => 0x34, 
+            "5" => 0x35, "6" => 0x36, "7" => 0x37, "8" => 0x38, "9" => 0x39,
+            "space" | " " => 0x20, "enter" | "return" => 0x0D, "tab" => 0x09, 
+            "escape" | "esc" => 0x1B, "delete" | "del" => 0x2E, "backspace" | "bksp" => 0x08, 
+            "up" => 0x26, "down" => 0x28, "left" => 0x25, "right" => 0x27,
+            "-" => 0xBD, "=" => 0xBB, "[" => 0xDB, "]" => 0xDD, "\\" => 0xDC, 
+            ";" => 0xBA, "'" => 0xDE, "," => 0xBC, "." => 0xBE, "/" => 0xBF,
+            _ => 0,
+        };
 
+        unsafe {
+            // กดปุ่มเสริมค้างไว้
+            for &vk in &vk_modifiers {
+                keybd_event(vk, 0, 0, 0);
+            }
+            
+            std::thread::sleep(std::time::Duration::from_millis(20));
+
+            // กดปุ่มหลักแล้วปล่อย
+            if vk_key != 0 {
+                keybd_event(vk_key, 0, 0, 0);
+                keybd_event(vk_key, 0, KEYEVENTF_KEYUP, 0);
+            }
+
+            // ปล่อยปุ่มเสริม (ต้องถอยหลัง)
+            for &vk in vk_modifiers.iter().rev() {
+                keybd_event(vk, 0, KEYEVENTF_KEYUP, 0);
+            }
+        }
+
+        println!("[action-ring] Shortcut simulated via Native Windows API: {}", shortcut);
+        return Ok(());
+    }
+
+    // 🐧 สำหรับ Linux ให้คง enigo ไว้
+    #[cfg(target_os = "linux")]
+    {
+        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        let modifiers: Vec<Key> = mod_tokens.iter().map(|s| parse_modifier(s)).collect::<Result<_, _>>()?;
+        let main_key = parse_key(key_str)?;
+        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| format!("Failed to initialise: {e}"))?;
+
+        for &modifier in &modifiers { let _ = enigo.key(modifier, Direction::Press); }
+        std::thread::sleep(std::time::Duration::from_millis(20));
         let mut is_success = true;
         let mut error_message = String::new();
-
         if let Err(e) = enigo.key(main_key, Direction::Click) {
             is_success = false;
             error_message = format!("Key click failed ({key_str:?}): {e}");
         }
-
-        for &modifier in modifiers.iter().rev() {
-            let _ = enigo.key(modifier, Direction::Release);
-        }
-
-        if !is_success {
-            return Err(error_message);
-        }
-
-        println!("[action-ring] Shortcut simulated: {}", shortcut);
-        Ok(())
+        for &modifier in modifiers.iter().rev() { let _ = enigo.key(modifier, Direction::Release); }
+        if !is_success { return Err(error_message); }
+        return Ok(());
     }
 }
 
 /// Map a lowercase modifier token to an [`enigo::Key`].
 fn parse_modifier(s: &str) -> Result<Key, String> {
     match s {
-        // 💥 เมื่อเจอคำว่า cmd, command หรือ meta
-        "cmd" | "command" | "meta" => {
-            #[cfg(target_os = "macos")]
-            {
-                // ถ้าเป็น Mac ให้ใช้ปุ่ม Meta (Command)
-                Ok(Key::Meta)
-            }
-            #[cfg(target_os = "windows")]
-            {
-                // ถ้าเป็น Windows ให้แปลงเป็น Control อัตโนมัติ!
-                Ok(Key::Control)
-            }
-            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-            {
-                Ok(Key::Meta) // Fallback สำหรับ OS อื่นๆ
-            }
-        }
+        // 💥 ลบเงื่อนไขที่แอบแปลงเป็น Control ออกไป ให้ทุก OS ใช้ปุ่ม Meta ตรงๆ
+        "cmd" | "command" | "meta" | "win" | "super" => Ok(Key::Meta),
         "ctrl" | "control" => Ok(Key::Control),
         "shift" => Ok(Key::Shift),
         "alt" | "option" => Ok(Key::Alt),
         _ => Err(format!("Unknown modifier: {}", s)),
     }
 }
+
 /// Map a lowercase key token to an [`enigo::Key`].
 fn parse_key(s: &str) -> Result<Key, String> {
     match s {

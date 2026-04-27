@@ -60,7 +60,6 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
     }, 400); 
   }, []);
 
-  // 💥 แก้ไขหน้า Loading ให้ใช้สีธีมปัจจุบันแทนสีดำ 💥
   if (loading) {
     return (
       <div className={`absolute inset-0 flex items-center justify-center ${activeTheme.bg} ${activeTheme.text}`}>
@@ -95,28 +94,38 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
         <div className="ml-auto flex items-center gap-3">
           {/* ปุ่ม Report Bug */}
           <button
-            onClick={() => setIsBugModalOpen(true)} // เปลี่ยนจากเปิดลิงก์เป็นเปิด Modal
+            onClick={() => setIsBugModalOpen(true)}
             title="Report a bug"
-            className={`flex items-center justify-center w-10 h-10 border rounded-full transition-all shadow-sm ${
+            // 💥 1. เพิ่ม group และเปลี่ยนจาก gap-2 เป็น px-2.5 เพื่อให้ตอนหดตัวมันเป็นวงกลมพอดี
+            className={`group flex items-center justify-center h-10 px-2.5 border rounded-full transition-all duration-300 shadow-sm text-sm ${
               currentTheme.isDark 
                 ? 'bg-white/5 border-white/10 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 hover:border-red-400/30' 
                 : 'bg-black/5 border-black/10 text-zinc-500 hover:text-red-600 hover:bg-red-600/10 hover:border-red-600/30'
             }`}
           >
-            <Bug size={18} />
+            {/* 💥 2. ล็อกขนาดไอคอนไม่ให้โดนบีบตอนแอนิเมชันด้วย shrink-0 */}
+            <Bug size={18} className="shrink-0" />
+            
+            {/* 💥 3. ซ่อนข้อความไว้ แล้วขยายออกเฉพาะตอน hover (group-hover) */}
+            <span className="overflow-hidden transition-all duration-300 whitespace-nowrap max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2 font-medium">
+              Report Bug
+            </span>
           </button>
 
           {/* ปุ่ม Donate */}
           <button
             onClick={() => setIsSupportOpen(true)}
             title="Support OrbitKey"
-            className={`flex items-center justify-center w-10 h-10 border rounded-full transition-all shadow-sm ${
+            className={`group flex items-center justify-center h-10 px-2.5 border rounded-full transition-all duration-300 shadow-sm text-sm ${
               currentTheme.isDark 
                 ? 'bg-white/5 border-white/10 text-zinc-400 hover:text-yellow-400 hover:bg-yellow-400/10 hover:border-yellow-400/30' 
                 : 'bg-black/5 border-black/10 text-zinc-500 hover:text-yellow-600 hover:bg-yellow-600/10 hover:border-yellow-600/30'
             }`}
           >
-            <Coffee size={18} />
+            <Coffee size={18} className="shrink-0" />
+            <span className="overflow-hidden transition-all duration-300 whitespace-nowrap max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2 font-medium">
+              Support
+            </span>
           </button>
         </div>
       </header>

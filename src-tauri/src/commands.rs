@@ -115,6 +115,9 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
         // 💥 2. ระบบโชว์ Control Panel (สร้างใหม่ถ้าเผลอกดปิดไป) 💥
         ActionType::OpenControlPanel => {
             if let Some(window) = _app.get_webview_window("main") {
+                // 💥 เพิ่มบรรทัดนี้: ปลดล็อคจากการพับเก็บก่อน (สำคัญมากสำหรับ Windows)
+                let _ = window.unminimize(); 
+                
                 // ถ้าหน้าต่างซ่อนอยู่ ให้โชว์
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -126,7 +129,7 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                     tauri::WebviewUrl::App("index.html".into()),
                 )
                 .title("OrbitKey — Control Panel")
-                .inner_size(1000.0, 700.0) // 💡 แชมป์ปรับขนาดเริ่มต้นตรงนี้ได้ครับ
+                .inner_size(1000.0, 700.0)
                 .build();
             }
             Ok(())
@@ -194,6 +197,9 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                     // 💥 เพิ่มให้ Macro เรียก Control Panel แบบใหม่ได้ด้วย 💥
                     "open_control_panel" => {
                         if let Some(window) = _app.get_webview_window("main") {
+                            // 💥 เพิ่ม unminimize ตรงนี้ด้วยเหมือนกันครับ
+                            let _ = window.unminimize();
+                            
                             let _ = window.show();
                             let _ = window.set_focus();
                         } else {

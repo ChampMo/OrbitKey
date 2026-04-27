@@ -70,11 +70,26 @@ export default function ActionRing() {
 
   let animClass = "";
   switch (config?.animSpeed) {
-    case "instant": animClass = "opacity-100 transition-none"; break;
-    case "fast": animClass = isVisible ? "opacity-100 scale-100 transition-all duration-150 ease-out" : "opacity-0 scale-90 transition-none"; break;
-    case "smooth": animClass = isVisible ? "opacity-100 scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" : "opacity-0 scale-75 blur-md transition-none"; break;
-    case "spring": animClass = isVisible ? "animate-spring-custom" : "opacity-0 scale-50 transition-none"; break;
-    default: animClass = isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95";
+    case "instant": 
+      animClass = "transition-none"; 
+      break;
+    case "fast": 
+      animClass = isVisible 
+        ? "scale-100 transition-all duration-150 ease-out" 
+        : "scale-90 transition-all duration-150 ease-in"; 
+      break;
+    case "smooth": 
+      animClass = isVisible 
+        ? "scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" 
+        : "scale-75 blur-sm transition-all duration-300 ease-in"; 
+      break;
+    case "spring": 
+      animClass = isVisible 
+        ? "animate-spring-custom" 
+        : "scale-50 transition-all duration-200 ease-in"; 
+      break;
+    default: 
+      animClass = isVisible ? "scale-100" : "scale-95 transition-all duration-150";
   }
 
   const loadData = async () => {
@@ -114,7 +129,7 @@ export default function ActionRing() {
       const isSwitchProfile = targetSlice.actionType === "switch_profile";
       const shouldClose = !isSwitchProfile && (isReleaseMode || settingClose);
 
-      if (shouldClose) await invoke("hide_action_ring").catch(console.error);
+      if (shouldClose) closeRing();
       else setTimeout(() => { setClickedId(null); }, 150);
       
       let permissionGranted = false;
@@ -223,17 +238,40 @@ export default function ActionRing() {
   }, [slices, hoveredMainId, clickedId, center, isVisible, DEAD_ZONE, R_MAIN, scaleMult]);
 
 
+  const closeRing = () => {
+    setIsVisible(false); // เริ่มแอนิเมชันตอนปิด
+
+    let delay = 0;
+    switch (configRef.current?.animSpeed) {
+      case "fast": delay = 150; break;
+      case "smooth": delay = 300; break;
+      case "spring": delay = 200; break;
+      default: delay = 0; break;
+    }
+
+    // รอให้แอนิเมชันเล่นจบ ค่อยปิดหน้าต่างจริงๆ
+    setTimeout(() => {
+      invoke("hide_action_ring").catch(console.error);
+      setCenter({ x: -1000, y: -1000 });
+      setHoveredMainId(null);
+      setHoveredChildId(null);
+      setTempProfileId(null);
+    }, delay);
+  };
+
   return (
-    // 💥 ใส่สีดำโปร่งใส 1% เพื่อกันเหนียวให้ macOS ยอมส่ง Event การคลิก (MouseUp) มาให้เรา 💥
     <div 
       className="fixed inset-0 w-screen h-screen select-none overflow-hidden" 
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.01)" }}
       onMouseUp={() => { 
         if(hoveredMainId || hoveredChildId) executeAction(hoveredMainId, hoveredChildId); 
-        else invoke("hide_action_ring").catch(console.error); 
+        else closeRing(); 
       }}
     >
-      <div key={animKey} className={`w-full h-full relative ${isVisible ? `opacity-100 ${animClass}` : "opacity-0 transition-none duration-0"}`}>
+      <div 
+        key={animKey} 
+        className={`w-full h-full relative ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"} ${animClass}`}
+        style={{ transformOrigin: `${center.x}px ${center.y}px` }}
+      >
         
         {/* กากบาทตรงกลาง */}
         <div className="absolute flex items-center justify-center rounded-full bg-zinc-900/80 border border-white/10"
@@ -266,7 +304,7 @@ export default function ActionRing() {
                 <div className="absolute pointer-events-none flex items-center justify-center z-20"
                      style={{ left: center.x + (R_MAIN + 40 * scaleMult) * Math.cos(angle), top: center.y + (R_MAIN + 40 * scaleMult) * Math.sin(angle), transform: "translate(-50%, -50%)",
                               opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0, transition: itemTransition, transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms" }}>
-                  <LucideIcons.ChevronRight size={(active ? 24 : 18) * scaleMult} strokeWidth={4} className={`duration-200 ${active ? "text-current drop-shadow-md" : "text-zinc-500/80"}`} style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }} />
+                  <LucideIcons.ChevronRight size={(active ? 24 : 18) * scaleMult} strokeWidth={4} className={`duration-200 ${active ? "text-white drop-shadow-md" : "text-zinc-500/80"}`} style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }} />
                 </div>
               )}
 
