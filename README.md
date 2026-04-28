@@ -46,9 +46,13 @@
 <div align="center">
   <table width="100%">
     <tr>
+
+
       <td align="center" width="36.4%">
         <b>✨ Action Ring in Motion</b><br/>
-        <sub>Smooth spring animations & fluid UI</sub>
+        <sub>Smooth spring animation
+
+s & fluid UI</sub>
       </td>
       <td align="center" width="63.6%">
         <b>⚙️ Intuitive Control Panel</b><br/>
@@ -57,11 +61,15 @@
     </tr>
     <tr>
       <td align="center" valign="top">
-        <video src="./docs/demo-summon.mp4" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
+        <video src="https://github.com/user-attachments/assets/c6922467-5804-4c0c-a765-63a51a7df7b5" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
       </td>
       <td align="center" valign="top">
-        <video src="./docs/demo-action.mp4" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
+        <video src="https://github.com/user-attachments/assets/19139ed4-0957-4c8b-b582-63bcba93d2f8" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
       </td>
+
+
+
+
     </tr>
   </table>
 </div>
