@@ -561,18 +561,48 @@ pub async fn send_bug_report(
 pub fn get_mouse_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
     use tauri::Manager;
 
-    if let Some(window) = app.get_webview_window("action-ring") {
-        if let Ok(pos) = window.cursor_position() {
-            if let Ok(Some(monitor)) = window.current_monitor() {
+    // 💥 ท่าไม้ตาย Windows: ดึงพิกัดเมาส์ระดับ OS (ทะลุกระจกใสได้ 100%)
+    #[cfg(target_os = "windows")]
+    {
+        #[repr(C)]
+        struct POINT { x: i32, y: i32 }
+        
+        #[link(name = "user32")]
+        extern "system" { 
+            fn GetCursorPos(lpPoint: *mut POINT) -> i32; 
+        }
+
+        let mut point = POINT { x: 0, y: 0 };
+        unsafe { GetCursorPos(&mut point); } // ดึงเมาส์จากระบบ Windows โดยตรง!
+
+        if let Some(window) = app.get_webview_window("action-ring") {
+            if let Ok(win_pos) = window.outer_position() {
                 let scale = window.scale_factor().unwrap_or(1.0);
-                let mon_pos = monitor.position();
-
-                let local_x = (pos.x as f64 - mon_pos.x as f64) / scale;
-                let local_y = (pos.y as f64 - mon_pos.y as f64) / scale;
-
+                
+                // คำนวณพิกัดเทียบกับกรอบ 800x800 ของเรา
+                let local_x = (point.x as f64 - win_pos.x as f64) / scale;
+                let local_y = (point.y as f64 - win_pos.y as f64) / scale;
+                
                 return Ok((local_x, local_y));
             }
         }
     }
+
+    // 🍏 สำหรับ Mac: ดึงข้อมูลแบบเดิมที่ทำงานได้ลื่นอยู่แล้ว
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(window) = app.get_webview_window("action-ring") {
+            if let Ok(pos) = window.cursor_position() {
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let scale = window.scale_factor().unwrap_or(1.0);
+                    let mon_pos = monitor.position();
+                    let local_x = (pos.x as f64 - mon_pos.x as f64) / scale;
+                    let local_y = (pos.y as f64 - mon_pos.y as f64) / scale;
+                    return Ok((local_x, local_y));
+                }
+            }
+        }
+    }
+
     Err("Failed to get position".into())
 }

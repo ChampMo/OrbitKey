@@ -166,10 +166,11 @@ export default function ActionRing() {
       
       // 💥 [หัวใจสำคัญ] แยกระบบ Windows กับ Mac
       if (isWindows) {
-        // บน Windows หน้าต่างเราเล็ก 600x600 ดังนั้นจุดศูนย์กลางคือครึ่งนึงของจอ
-        setCenter({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+        // บน Windows: หน้าต่างเรามีขนาด 800x800 คงที่ 
+        // ดังนั้นบังคับให้จุดศูนย์กลางของวงแหวนอยู่ที่พิกัด x:400, y:400 เสมอ!
+        setCenter({ x: 400, y: 400 });
       } else {
-        // บน Mac หน้าต่าง Fullscreen ให้ใช้พิกัดเมาส์เป๊ะๆ
+        // บน Mac: หน้าต่างกางเต็มจอ ให้ใช้พิกัดเมาส์ที่รับมาจาก Rust
         setCenter({ x: local_x, y: local_y });
       }
 
