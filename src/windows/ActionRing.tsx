@@ -1,7 +1,7 @@
 /**
  * ActionRing.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Master Version: Perfect Centering + Folder Expand/Collapse + Adaptive Themes
+ * Master Version: Perfect Centering (Windows) + Folder Expand/Collapse + Adaptive Themes
  */
 
 import { useEffect, useState, useRef, Fragment } from "react";
@@ -19,6 +19,7 @@ interface AppSettings {
 }
 
 export default function ActionRing() {
+  const isWindows = navigator.userAgent.includes("Windows");
   const [allProfiles, setAllProfiles] = useState<ApiProfile[]>([]);
   const [tempProfileId, setTempProfileId] = useState<string | null>(null);
   
@@ -33,7 +34,6 @@ export default function ActionRing() {
   const [hoveredChildId, setHoveredChildId] = useState<string | null>(null);
   const [clickedId, setClickedId] = useState<string | null>(null);
 
-  // State สำหรับควบคุมแอนิเมชันเข้า-ออกของโฟลเดอร์
   const [animFolderId, setAnimFolderId] = useState<string | null>(null);
 
   const slicesRef = useRef<ApiSlice[]>([]);
@@ -47,7 +47,6 @@ export default function ActionRing() {
   useEffect(() => { hoveredMainRef.current = hoveredMainId; }, [hoveredMainId]);
   useEffect(() => { hoveredChildRef.current = hoveredChildId; }, [hoveredChildId]);
 
-  // หน่วงเวลา 10ms ก่อนกางโฟลเดอร์ เพื่อให้ CSS Animation ทำงานได้สมูท
   useEffect(() => {
     if (hoveredMainId && slices.find(s => s.id === hoveredMainId)?.actionType === 'folder') {
       const timer = setTimeout(() => setAnimFolderId(hoveredMainId), 10);
@@ -157,14 +156,23 @@ export default function ActionRing() {
   useEffect(() => {
     loadData();
     const unlistenShow = listen("ring:show", (event: any) => {
-      const { local_x, local_y } = event.payload;
+      const { local_x, local_y } = event.payload || { local_x: -1000, local_y: -1000 };
       setIsVisible(false); 
       loadData(); 
       setHoveredMainId(null); 
       setHoveredChildId(null); 
       setClickedId(null);
       summonTimeRef.current = Date.now(); 
-      setCenter({ x: local_x, y: local_y }); 
+      
+      // 💥 [หัวใจสำคัญ] แยกระบบ Windows กับ Mac
+      if (isWindows) {
+        // บน Windows หน้าต่างเราเล็ก 600x600 ดังนั้นจุดศูนย์กลางคือครึ่งนึงของจอ
+        setCenter({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      } else {
+        // บน Mac หน้าต่าง Fullscreen ให้ใช้พิกัดเมาส์เป๊ะๆ
+        setCenter({ x: local_x, y: local_y });
+      }
+
       setAnimKey(k => k + 1);
       requestAnimationFrame(() => setIsVisible(true));
     });
@@ -179,19 +187,15 @@ export default function ActionRing() {
     return () => { unlistenShow.then(f => f()); unlistenHide.then(f => f()); unlistenKeyReleased.then(f => f()); unlistenSwitchProfile.then(f => f()); };
   }, []);
 
-  // 💥 ท่าไม้ตายสุดท้าย: Polling พิกัดเมาส์ทะลุระบบความปลอดภัยของ macOS 💥
   useEffect(() => {
-    // ถ้าหน้าต่างปิดอยู่ หรือกดคลิกไปแล้ว ไม่ต้องอ่านพิกัดให้เปลือง CPU
     if (!isVisible || clickedId !== null) return;
 
     let isPolling = false;
-
     const timer = setInterval(async () => {
       if (isPolling) return;
       isPolling = true;
 
       try {
-        // 💥 เรียกคำสั่ง Rust ที่เราเพิ่งสร้าง มันจะคืนค่ากลับมาเป็น Array [x, y] เป๊ะๆ!
         const [mouseX, mouseY] = await invoke<[number, number]>("get_mouse_position");
         
         const dx = mouseX - center.x; 
@@ -228,18 +232,17 @@ export default function ActionRing() {
           if (hoveredMainId !== slices[idx].id) setHoveredMainId(slices[idx].id);
         }
       } catch (e) {
-        // เงียบไว้เผื่อจังหวะหน้าต่างกำลังปิด
       } finally {
         isPolling = false;
       }
-    }, 16); // 16ms = ทำงานที่ 60 เฟรมต่อวินาที (ลื่นๆ ไม่หน่วง)
+    }, 16); 
 
     return () => clearInterval(timer);
   }, [slices, hoveredMainId, clickedId, center, isVisible, DEAD_ZONE, R_MAIN, scaleMult]);
 
 
   const closeRing = () => {
-    setIsVisible(false); // เริ่มแอนิเมชันตอนปิด
+    setIsVisible(false);
 
     let delay = 0;
     switch (configRef.current?.animSpeed) {
@@ -249,7 +252,6 @@ export default function ActionRing() {
       default: delay = 0; break;
     }
 
-    // รอให้แอนิเมชันเล่นจบ ค่อยปิดหน้าต่างจริงๆ
     setTimeout(() => {
       invoke("hide_action_ring").catch(console.error);
       setCenter({ x: -1000, y: -1000 });
@@ -273,7 +275,6 @@ export default function ActionRing() {
         style={{ transformOrigin: `${center.x}px ${center.y}px` }}
       >
         
-        {/* กากบาทตรงกลาง */}
         <div className="absolute flex items-center justify-center rounded-full bg-zinc-900/80 border border-white/10"
         style={{ width: 46 * scaleMult, height: 46 * scaleMult, left: center.x, top: center.y, transform: "translate(-50%, -50%)", zIndex: 10 }}>
           <LucideIcons.X size={24 * scaleMult} strokeWidth={3} className="text-red-500" />

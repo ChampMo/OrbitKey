@@ -1,5 +1,3 @@
-// src-tauri/src/hotkey.rs
-
 use std::str::FromStr;
 use tauri::AppHandle;
 use tauri::Emitter;
@@ -30,14 +28,27 @@ pub fn setup_hotkeys(handle: &AppHandle) -> Result<(), Box<dyn std::error::Error
 }
 
 /// ฟังก์ชันสำหรับลงทะเบียนปุ่ม
-/// ฟังก์ชันสำหรับลงทะเบียนปุ่ม
 fn register_shortcut(app: &AppHandle, hotkey_str: &str) {
     let app_clone = app.clone();
     let _ = app
         .global_shortcut()
         .on_shortcut(hotkey_str, move |app_handle, _shortcut, event| {
             if event.state() == ShortcutState::Pressed {
-                // 💥 ตอนกดปุ่ม: โชว์วงแหวน
+                
+                // 💥 [เพิ่มใหม่] สำหรับ Windows: สั่งให้หน้าต่างวาร์ปไปหาเมาส์ก่อนโชว์
+                if let Some(window) = app_clone.get_webview_window("action-ring") {
+                    #[cfg(target_os = "windows")]
+                    {
+                        if let Ok(cursor_pos) = window.cursor_position() {
+                            // หักลบครึ่งนึงของขนาดหน้าต่าง (800/2 = 400) เพื่อให้เมาส์อยู่ตรงกลางเป๊ะ
+                            let x = cursor_pos.x as i32 - 400;
+                            let y = cursor_pos.y as i32 - 400;
+                            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+                        }
+                    }
+                }
+
+                // 💥 ตอนกดปุ่ม: โชว์วงแหวน (เรียกฟังก์ชันเดิมของแชมป์)
                 if let Err(e) = window_manager::show_action_ring(&app_clone) {
                     eprintln!("[action-ring] Failed to show ring: {e}");
                 }
@@ -47,6 +58,7 @@ fn register_shortcut(app: &AppHandle, hotkey_str: &str) {
             }
         });
 }
+
 /// ถูกเรียกจาก `commands::save_settings` เวลาผู้ใช้กดเปลี่ยนปุ่มในหน้า UI
 pub fn update_hotkey(app: &AppHandle, old_hotkey: &str, new_hotkey: &str) -> Result<(), String> {
     // 1. แปลงสตริงให้เป็นรูปแบบที่ plugin รู้จัก

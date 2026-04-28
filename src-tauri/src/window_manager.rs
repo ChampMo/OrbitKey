@@ -19,14 +19,26 @@ pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
     let mut local_x = 400.0;
     let mut local_y = 400.0;
 
-    if let Ok(Some(monitor)) = ring_window.current_monitor() {
-        let mon_pos = monitor.position();
-        let mon_size = monitor.size();
-        let _ = ring_window.set_size(*mon_size);
-        let _ = ring_window.set_position(*mon_pos);
+    // 💥 เฉพาะ Mac: ให้ขยายหน้าต่างเต็มจอ 100%
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(Some(monitor)) = ring_window.current_monitor() {
+            let mon_pos = monitor.position();
+            let mon_size = monitor.size();
+            let _ = ring_window.set_size(*mon_size);
+            let _ = ring_window.set_position(*mon_pos);
 
-        local_x = (cursor_pos.x as f64 - mon_pos.x as f64) / scale;
-        local_y = (cursor_pos.y as f64 - mon_pos.y as f64) / scale;
+            local_x = (cursor_pos.x as f64 - mon_pos.x as f64) / scale;
+            local_y = (cursor_pos.y as f64 - mon_pos.y as f64) / scale;
+        }
+    }
+
+    // 💥 เฉพาะ Windows: ไม่ต้องขยายหน้าต่าง เพราะ hotkey.rs วาร์ปหน้าต่างไซส์ 800x800 มาให้ตรงเมาส์แล้ว!
+    #[cfg(target_os = "windows")]
+    {
+        // ส่งค่ากลางๆ ไป เพราะฝั่ง React เราเขียนล็อคเป้าไว้กลางจอแล้ว
+        local_x = 400.0; 
+        local_y = 400.0;
     }
 
     let _ = ring_window.set_decorations(false);
@@ -43,14 +55,13 @@ pub fn show_action_ring(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
                 let ns_window = ns_win as *mut objc::runtime::Object;
                 let nil_id: *mut objc::runtime::Object = std::ptr::null_mut();
 
-                // 💥 1. สั่งให้โชว์และ "รับบทเป็นหน้าต่าง Key" ทันที
-                // ท่านี้แหละที่แก้ปัญหา Hover ไม่ติดและต้องคลิกค้าง!
+                // 1. สั่งให้โชว์และ "รับบทเป็นหน้าต่าง Key" ทันที
                 let _: () = msg_send![ns_window, makeKeyAndOrderFront: nil_id];
 
-                // 💥 2. บังคับรับเมาส์ Hover เสมอ
+                // 2. บังคับรับเมาส์ Hover เสมอ
                 let _: () = msg_send![ns_window, setAcceptsMouseMovedEvents: true];
 
-                // 💥 3. ป้องกัน Tauri บล็อกการรับคลิกเพราะมองว่าเป็นหน้าต่างโปร่งใส
+                // 3. ป้องกัน Tauri บล็อกการรับคลิกเพราะมองว่าเป็นหน้าต่างโปร่งใส
                 let _: () = msg_send![ns_window, setIgnoresMouseEvents: false];
             }
         }

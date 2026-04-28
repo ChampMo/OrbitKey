@@ -92,6 +92,13 @@ pub fn run() {
             // 🪄 4. แปลงร่างหน้าต่าง Action Ring ทะลุเกราะ Fullscreen
             // ==========================================================
             if let Some(ring_window) = app.get_webview_window("action-ring") {
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = ring_window.set_fullscreen(false);
+                    let _ = ring_window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 800, height: 800 }));
+                    let _ = ring_window.set_decorations(false);
+                    // 💥 ลบบรรทัด set_transparent ทิ้งไปได้เลยครับ เพราะตั้งใน tauri.conf.json แล้ว
+                }
                 #[cfg(target_os = "macos")]
                 {
                     use objc::runtime::{Class, Object};

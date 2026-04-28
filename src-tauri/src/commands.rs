@@ -36,10 +36,7 @@ pub struct AppInfo {
 
 #[tauri::command]
 pub fn hide_action_ring(app: AppHandle) -> Result<(), String> {
-    // 💥 เติม ? ไว้ท้ายสุดเพื่อให้มันส่ง Error ออกไปถ้าซ่อนหน้าต่างไม่สำเร็จ
     window_manager::hide_action_ring(&app).map_err(|e| e.to_string())?;
-
-    // 💥 ต้องมีบรรทัดนี้ปิดท้าย เพื่อบอกว่าฟังก์ชันทำงานสำเร็จ (คืนค่า Ok)
     Ok(())
 }
 
@@ -92,18 +89,17 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
         }
         ActionType::SwitchProfile => {
             let target_profile = action.action_data.unwrap_or_default();
-            use tauri::Emitter; // ให้แน่ใจว่าเรียกใช้ Emitter
+            use tauri::Emitter;
             let _ = _app.emit("switch_profile", target_profile);
             Ok(())
         }
 
-        // 💥 [ส่วนที่เพิ่มใหม่: ระบบเปิดแอป] 💥
         ActionType::OpenApp => {
             let data = action.action_data.unwrap_or_else(|| "[]".to_string());
             if let Ok(paths) = serde_json::from_str::<Vec<String>>(&data) {
                 for path in paths {
                     #[cfg(target_os = "windows")]
-                    let _ = std::process::Command::new(&path).spawn(); // รันตรงๆ ไปเลย
+                    let _ = std::process::Command::new(&path).spawn();
 
                     #[cfg(target_os = "macos")]
                     let _ = std::process::Command::new("open").arg(&path).spawn();
@@ -112,17 +108,12 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
             Ok(())
         }
 
-        // 💥 2. ระบบโชว์ Control Panel (สร้างใหม่ถ้าเผลอกดปิดไป) 💥
         ActionType::OpenControlPanel => {
             if let Some(window) = _app.get_webview_window("main") {
-                // 💥 เพิ่มบรรทัดนี้: ปลดล็อคจากการพับเก็บก่อน (สำคัญมากสำหรับ Windows)
                 let _ = window.unminimize(); 
-                
-                // ถ้าหน้าต่างซ่อนอยู่ ให้โชว์
                 let _ = window.show();
                 let _ = window.set_focus();
             } else {
-                // ถ้าหน้าต่างถูกปิด (Destroy) ไปแล้ว ให้สร้างใหม่
                 let _ = tauri::WebviewWindowBuilder::new(
                     &_app,
                     "main",
@@ -151,33 +142,22 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                         tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
                     }
                     "shortcut" => {
-                        let _ =
-                            tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data))
-                                .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::simulate_shortcut(&data)).await;
                     }
                     "launch" => {
-                        let _ = tokio::task::spawn_blocking(move || actions::launch_target(&data))
-                            .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::launch_target(&data)).await;
                     }
                     "script" => {
-                        let _ =
-                            tokio::task::spawn_blocking(move || actions::run_script(&data, &[]))
-                                .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::run_script(&data, &[])).await;
                     }
                     "text_snippet" => {
-                        let _ =
-                            tokio::task::spawn_blocking(move || actions::type_text_snippet(&data))
-                                .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::type_text_snippet(&data)).await;
                     }
                     "media" => {
-                        let _ =
-                            tokio::task::spawn_blocking(move || actions::run_media_command(&data))
-                                .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::run_media_command(&data)).await;
                     }
                     "system" => {
-                        let _ =
-                            tokio::task::spawn_blocking(move || actions::run_system_command(&data))
-                                .await;
+                        let _ = tokio::task::spawn_blocking(move || actions::run_system_command(&data)).await;
                     }
                     "switch_profile" => {
                         use tauri::Emitter;
@@ -194,12 +174,9 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                             }
                         }
                     }
-                    // 💥 เพิ่มให้ Macro เรียก Control Panel แบบใหม่ได้ด้วย 💥
                     "open_control_panel" => {
                         if let Some(window) = _app.get_webview_window("main") {
-                            // 💥 เพิ่ม unminimize ตรงนี้ด้วยเหมือนกันครับ
                             let _ = window.unminimize();
-                            
                             let _ = window.show();
                             let _ = window.set_focus();
                         } else {
@@ -218,7 +195,6 @@ pub async fn execute_action(_app: tauri::AppHandle, action: ActionSlice) -> Resu
                     }
                 }
             }
-
             Ok(())
         }
     };
@@ -238,19 +214,16 @@ pub fn get_default_config() -> String {
 
 #[tauri::command]
 pub fn get_profiles(app: AppHandle) -> Vec<Profile> {
-    // 💥 เปลี่ยนจาก ApiProfile เป็น Profile
     let config_path = app.path().app_config_dir().unwrap().join("profiles.json");
 
     if config_path.exists() {
         let data = std::fs::read_to_string(config_path).unwrap_or_else(|_| "[]".to_string());
         serde_json::from_str::<Vec<Profile>>(&data).unwrap_or_else(|e| {
             println!("Profile JSON Error: {}", e);
-            vec![] // ถ้าไฟล์เสีย ให้ส่งลิสต์ว่างกลับไป ดีกว่าจอขาวครับ
+            vec![]
         })
     } else {
         let default_data = include_str!("../default_profiles.json");
-
-        // 💥 ตรงนี้ก็ต้องเปลี่ยนเป็น Profile ด้วย
         match serde_json::from_str::<Vec<Profile>>(default_data) {
             Ok(profiles) => profiles,
             Err(e) => {
@@ -299,7 +272,6 @@ pub fn save_settings(
         *current_hotkey = settings.global_hotkey.clone();
     }
 
-    // 💥 จัดการ Autostart ของจริง!
     let autostart_manager = app.autolaunch();
     if settings.start_with_os {
         let _ = autostart_manager.enable();
@@ -309,7 +281,6 @@ pub fn save_settings(
 
     Ok(())
 }
-// ─── Tauri v2 Export / Import Profiles ─────────────────────────────────────
 
 #[tauri::command]
 pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), String> {
@@ -331,7 +302,6 @@ pub async fn export_profile(app: AppHandle, profile: Profile) -> Result<(), Stri
         std::fs::write(&path_buf, json_string).map_err(|e| format!("Failed to write: {}", e))?;
         Ok(())
     } else {
-        // ✅ เลือกอย่างใดอย่างหนึ่งครับ (แนะนำ Ok(()) เพื่อไม่ให้ React พ่นสีแดง)
         println!("[action-ring] Export cancelled");
         Ok(())
     }
@@ -356,7 +326,6 @@ pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
             .map_err(|e| format!("Failed to deserialize: {}", e))?;
         Ok(profile)
     } else {
-        // ✅ ส่ง Err กลับไป (ห้ามมี Ok(()) ต่อท้าย)
         Err("Import cancelled".to_string())
     }
 }
@@ -365,22 +334,17 @@ pub async fn import_profile(app: AppHandle) -> Result<Profile, String> {
 pub fn open_accessibility_settings() {
     #[cfg(target_os = "macos")]
     {
-        // คำสั่ง Native ของ Mac สำหรับเปิดหน้า การช่วยการเข้าถึง (Accessibility) โดยเฉพาะ
         let _ = std::process::Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
             .spawn();
     }
 }
 
-// ─── System & Data Commands ─────────────────────────────────────────────
-
 #[tauri::command]
 pub async fn export_all_data(app: AppHandle) -> Result<(), String> {
-    // 1. โหลดข้อมูลทั้งหมดมารวมกัน
     let profiles = storage::load_profiles(&app)?;
     let settings = storage::load_settings(&app)?;
 
-    // สร้างเป็น JSON ก้อนเดียว
     let export_obj = json!({
         "profiles": profiles,
         "settings": settings
@@ -389,7 +353,6 @@ pub async fn export_all_data(app: AppHandle) -> Result<(), String> {
     let json_string = serde_json::to_string_pretty(&export_obj)
         .map_err(|e| format!("Failed to serialize data: {}", e))?;
 
-    // 2. เปิดหน้าต่างให้ผู้ใช้เลือกว่าจะเซฟไว้ไหน
     let result = app
         .dialog()
         .file()
@@ -411,7 +374,6 @@ pub async fn export_all_data(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
-    // 1. ให้ผู้ใช้เลือกไฟล์ Backup
     let result = app
         .dialog()
         .file()
@@ -426,7 +388,6 @@ pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
         let json_string =
             std::fs::read_to_string(&path_buf).map_err(|e| format!("Failed to read: {}", e))?;
 
-        // 2. แกะกล่อง JSON แยกว่าอันไหน Profile อันไหน Setting
         let parsed: serde_json::Value = serde_json::from_str(&json_string)
             .map_err(|e| format!("Invalid JSON format: {}", e))?;
 
@@ -441,7 +402,6 @@ pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
                 .map_err(|_| "Failed to parse settings".to_string())?;
             storage::write_settings(&app, &settings)?;
 
-            // อัปเดต Hotkey ใหม่ตามไฟล์ที่ Import มา
             let state = app.state::<AppState>();
             let mut current_hotkey = state.active_hotkey.lock().unwrap();
             let _ = crate::hotkey::update_hotkey(&app, &current_hotkey, &settings.global_hotkey);
@@ -458,7 +418,6 @@ pub async fn import_all_data(app: AppHandle) -> Result<(), String> {
 pub async fn factory_reset(app: AppHandle) -> Result<(), String> {
     use crate::state::AppSettings;
 
-    // 💥 ใช้ค่าจาก constant ที่เราประกาศไว้ด้านบนไฟล์
     let default_profiles: Vec<Profile> = serde_json::from_str(DEFAULT_PROFILES_JSON)
         .map_err(|e| format!("Default JSON error: {}", e))?;
 
@@ -476,7 +435,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
     #[cfg(target_os = "windows")]
     {
-        // 💥 เพิ่มบรรทัด OutputEncoding เพื่อรองรับแอปชื่อภาษาไทย 💥
         let ps_script = r#"
             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
             $sh = New-Object -ComObject WScript.Shell;
@@ -503,7 +461,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x08000000);
 
         if let Ok(output) = cmd.output() {
-            // ตอนนี้ String::from_utf8 จะอ่านภาษาไทยออกแล้ว!
             if let Ok(json_str) = String::from_utf8(output.stdout) {
                 if let Ok(parsed_apps) = serde_json::from_str::<Vec<AppInfo>>(&json_str) {
                     apps = parsed_apps;
@@ -530,7 +487,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         }
     }
 
-    // จัดเรียงกันเหนียวอีกรอบ
     apps.sort_by(|a, b| a.name.cmp(&b.name));
     apps.dedup_by(|a, b| a.name == b.name);
 
@@ -539,18 +495,16 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
 #[tauri::command]
 pub fn show_control_panel(handle: tauri::AppHandle) {
-    // พยายามดึงหน้าต่างที่ชื่อ "main" (หรือชื่อที่แชมป์ตั้งไว้ใน tauri.conf.json)
     if let Some(window) = handle.get_webview_window("main") {
+        let _ = window.unminimize(); // 💥 เพิ่มบรรทัดนี้ครับ!
         let _ = window.show();
         let _ = window.set_focus();
     }
 }
 
-
-
 #[tauri::command]
 pub async fn send_bug_report(
-    app: tauri::AppHandle, // 💥 เพิ่ม AppHandle เข้ามาเพื่อดึงเวอร์ชันแอป
+    app: tauri::AppHandle, 
     user_email: String, 
     description: String
 ) -> Result<String, String> {
@@ -564,15 +518,12 @@ pub async fn send_bug_report(
     let smtp_password = std::env::var("SMTP_PASSWORD")
         .map_err(|_| "Error: SMTP_PASSWORD not found in environment")?;
 
-    // 💥 ดึงข้อมูลระบบที่จำเป็น
-    let app_version = app.package_info().version.to_string(); // เวอร์ชันแอป (ดึงจาก tauri.conf.json)
-    let os_name = std::env::consts::OS; // ได้ค่าเป็น "macos", "windows", "linux"
-    let os_arch = std::env::consts::ARCH; // ได้ค่าเป็น "x86_64", "aarch64" (เอาไว้ดูว่าเป็น Intel หรือ Apple Silicon)
+    let app_version = app.package_info().version.to_string(); 
+    let os_name = std::env::consts::OS; 
+    let os_arch = std::env::consts::ARCH; 
 
-    // โหลดไฟล์ HTML Template
     let template = include_str!("email_template.html");
 
-    // 💥 แทนที่ตัวแปรใน HTML ด้วยข้อมูลทั้งหมด
     let html_body = template
         .replace("{{user_email}}", &user_email)
         .replace("{{description}}", &description)
@@ -587,7 +538,7 @@ pub async fn send_bug_report(
                 .unwrap(),
         )
         .to("sonesambidev@gmail.com".parse().unwrap())
-        .subject(format!("OrbitKey Bug Report (v{}) 🚀", app_version)) // แอบใส่เวอร์ชันในหัวข้ออีเมลด้วย
+        .subject(format!("OrbitKey Bug Report (v{}) 🚀", app_version)) 
         .header(ContentType::TEXT_HTML)
         .body(html_body)
         .map_err(|e| e.to_string())?;
@@ -616,7 +567,6 @@ pub fn get_mouse_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let mon_pos = monitor.position();
 
-                // คำนวณพิกัดให้ตรงกับจอ Mac (Retina) ล่วงหน้าเลย
                 let local_x = (pos.x as f64 - mon_pos.x as f64) / scale;
                 let local_y = (pos.y as f64 - mon_pos.y as f64) / scale;
 
