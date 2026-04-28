@@ -46,13 +46,9 @@
 <div align="center">
   <table width="100%">
     <tr>
-
-
       <td align="center" width="36.4%">
         <b>✨ Action Ring in Motion</b><br/>
-        <sub>Smooth spring animation
-
-s & fluid UI</sub>
+        <sub>Smooth spring animations & fluid UI</sub>
       </td>
       <td align="center" width="63.6%">
         <b>⚙️ Intuitive Control Panel</b><br/>
@@ -66,10 +62,6 @@ s & fluid UI</sub>
       <td align="center" valign="top">
         <video src="https://github.com/user-attachments/assets/19139ed4-0957-4c8b-b582-63bcba93d2f8" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
       </td>
-
-
-
-
     </tr>
   </table>
 </div>
