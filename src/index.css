@@ -41,6 +41,36 @@ html, body, #root {
   -webkit-backface-visibility: hidden;
 }
 
+/* src/index.css (หรือไฟล์ CSS หลักของโปรเจกต์) */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  
+  /* 💥 1. ห้ามมี Scrollbar โผล่มาที่หน้าหลักเด็ดขาด */
+  overflow: hidden; 
+  
+  /* 💥 2. ท่าไม้ตาย! ปิดเอฟเฟกต์ดึงยางยืด (Rubber-banding) บน Mac */
+  overscroll-behavior: none; 
+  
+  /* 💥 3. เผื่อเหนียว: เปลี่ยนสีพื้นหลังตัวล่างสุดให้เป็นสีมืด (หรือสีเดียวกับแอป) จะได้ไม่เห็นขอบขาว */
+  background-color: #0c0c0e; /* สีพื้นหลังของ Dark Theme */
+}
+
+/* ป้องกันการคลุมดำข้อความ (Text Selection) ทั่วทั้งแอปให้ดูเป็นโปรแกรมจริงๆ */
+* {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* แต่ยอมให้คลุมดำข้อความได้เฉพาะในช่องกรอกข้อมูล (Input/Textarea) */
+input, textarea {
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
 /* ── Thin dark-mode scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar {
     width: 3px;

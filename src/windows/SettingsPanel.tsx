@@ -20,6 +20,7 @@ export interface AppSettings {
   deadzone: number;
   centerAction: string;
   theme: ThemeId;
+  switchAnimStyle: string
 }
 
 // 💥 แก้ไขฟังก์ชันให้รับ Props 💥
@@ -135,18 +136,23 @@ export default function SettingsPanel({ onBack, initialConfig, activeTheme }: { 
           currentTheme.isDark ? 'bg-indigo-500/10' : 'bg-indigo-500/5'
         }`} />
         
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 pb-20">
-          <div className="space-y-6">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 pb-20 items-start">
+          
+          {/* 1. Interaction Settings: จอเล็กอยู่บนสุด / จอใหญ่อยู่ซ้ายบน */}
+          <div className="order-1 lg:col-start-1 lg:row-start-1">
             <InteractionSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
-            <SystemDataSettings 
-              config={config}
-              setConfig={setConfig} 
-              activeTheme={currentTheme} />
           </div>
-          <div className="space-y-6">
+
+          {/* 2. Appearance Settings: จอเล็กอยู่ตรงกลาง / จอใหญ่อยู่คอลัมน์ขวายาวๆ */}
+          <div className="order-2 lg:col-start-2 lg:row-start-1 lg:row-span-2">
             <AppearanceSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
-            
           </div>
+
+          {/* 3. System Data Settings: จอเล็กอยู่ล่างสุด / จอใหญ่อยู่ซ้ายล่าง (ต่อจาก Interaction) */}
+          <div className="order-3 lg:col-start-1 lg:row-start-2">
+            <SystemDataSettings config={config} setConfig={setConfig} activeTheme={currentTheme} />
+          </div>
+
         </div>
       </main>
       <ReportBug 

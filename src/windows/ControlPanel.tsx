@@ -31,6 +31,7 @@ import UpdateModal from './components/UpdateModal';
 import { ThemeId, THEMES } from "./Theme";
 import Alert from "./components/Alert";
 import SplashScreen from "./components/SplashScreen"; // นำเข้า Component
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 // ─── 1. Types & Interfaces ────────────────────────────────────────────────
 export type ActionTypeValue = 
@@ -76,7 +77,9 @@ interface AppSettings {
   animSpeed: string; 
   deadzone: number; 
   centerAction: string; 
-  theme: ThemeId;}
+  theme: ThemeId;
+  switchAnimStyle: string;
+}
 
 
 
@@ -932,6 +935,32 @@ export default function ControlPanel() {
     return elements;
   };
 
+  useEffect(() => {
+    let unlistenFn: (() => void) | undefined;
+
+    const setupListener = async () => {
+      try {
+        const appWindow = getCurrentWindow();
+        
+        unlistenFn = await appWindow.onCloseRequested(async (event) => {
+          // เบรกการปิดหน้าต่างจริงๆ
+          event.preventDefault();
+          
+          // สั่งซ่อนหน้าต่างแทน (แอปยังรันอยู่ วงแหวนยังใช้ได้)
+          await appWindow.hide(); 
+        });
+      } catch (error) {
+        console.error("OrbitKey Error:", error);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlistenFn) unlistenFn();
+    };
+  }, []);
+
 if (showSplash) {
     const loadingTheme = config ? THEMES[config.theme] : THEMES.dark;
     return (
@@ -966,7 +995,6 @@ if (showSplash) {
 
   const displayProfiles = liveProfiles || profiles;
   
-  // 💥 เรียกใช้ THEMES จากไฟล์ Theme.tsx 💥
 
   return (
     <div

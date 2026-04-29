@@ -57,9 +57,6 @@ export default function AppearanceSettings({
                       background: `linear-gradient(to top right, ${t.accentColor} 50%, transparent 50%)` 
                     }}
                   />
-
-                  {/* ไอคอน Checkmark เมื่อถูกเลือก */}
-                  
                 </div>
                 {isSelected && (
                     <div className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white rounded-full p-0.5 shadow-lg animate-in zoom-in duration-200 z-50">
@@ -69,10 +66,8 @@ export default function AppearanceSettings({
                 {/* ชื่อธีม (Label) */}
                 <span 
                   className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                    /* ถ้าไม่ได้ถูกเลือก ให้ใช้สีปัจจุบันและลด opacity ตามปกติ */
                     !isSelected ? 'text-current opacity-50 group-hover:opacity-100' : ''
                   }`}
-                  /* 💥 ใช้ style เพื่อดึงสี t.accentColor มาหยอดตอนที่ isSelected เป็น true */
                   style={{ color: isSelected ? t.accentColor : undefined }}
                 >
                   {t.label}
@@ -128,6 +123,35 @@ export default function AppearanceSettings({
               }`}
             >
               {speed}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 💥 --- Profile Switch Animation --- 💥 */}
+      <div className={`flex items-center justify-between pt-6 border-t ${activeTheme.isDark ? 'border-white/10' : 'border-black/10'}`}>
+        <div>
+          <label className="block text-sm font-semibold opacity-90">Switch Animation</label>
+          <p className="text-[11px] opacity-50 mt-0.5">Effect when changing profiles.</p>
+        </div>
+        
+        <div className={`flex gap-1 border rounded-xl p-1 ${activeTheme.isDark ? 'bg-black/40 border-white/10' : 'bg-white/60 border-black/10'}`}>
+          {[
+            { id: "instant", label: "instant" },
+            { id: "fade", label: "Smooth" }, // 💥 Fade หายอยู่กับที่
+            { id: "cyber-spin", label: "Spin" }, // 💥 ควงสว่าน
+            { id: "quantum-pop", label: "Pop" }, // 💥 หุบแล้วเด้งออก
+          ].map((anim) => (
+            <button
+              key={anim.id}
+              onClick={() => setConfig({ ...config, switchAnimStyle: anim.id })}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all ${
+                config.switchAnimStyle === anim.id 
+                  ? (activeTheme.isDark ? "bg-white/20 text-white shadow-sm" : "bg-white text-black shadow-sm") 
+                  : "opacity-40 hover:opacity-100 hover:bg-black/5 text-current"
+              }`}
+            >
+              {anim.label}
             </button>
           ))}
         </div>

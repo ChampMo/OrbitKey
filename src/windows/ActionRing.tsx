@@ -1,7 +1,7 @@
 /**
  * ActionRing.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Master Version: Perfect Centering (Windows) + Folder Expand/Collapse + Adaptive Themes
+ * Master Version: Perfect Centering + Folder Expand + Polished Switch Animations (Fixed Spin & Smooth)
  */
 
 import { useEffect, useState, useRef, Fragment } from "react";
@@ -15,7 +15,7 @@ interface ApiSlice { id: string; label: string; icon?: string; color?: string; a
 interface ApiProfile { id: string; name: string; slices: ApiSlice[]; isDefault: boolean; }
 interface AppSettings { 
   globalHotkey: string; startWithOS: boolean; ringScale: number; closeAfterExec: boolean; 
-  triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; theme: ThemeId;
+  triggerMode: string; animSpeed: string; deadzone: number; centerAction: string; theme: ThemeId; switchAnimStyle: string;
 }
 
 export default function ActionRing() {
@@ -30,18 +30,23 @@ export default function ActionRing() {
   const [center, setCenter] = useState({ x: -1000, y: -1000 });
   const [isVisible, setIsVisible] = useState(false); 
 
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [spinDeg, setSpinDeg] = useState(0); 
+  const [noTransition, setNoTransition] = useState(false); 
+
   const [hoveredMainId, setHoveredMainId] = useState<string | null>(null);
   const [hoveredChildId, setHoveredChildId] = useState<string | null>(null);
   const [clickedId, setClickedId] = useState<string | null>(null);
-
   const [animFolderId, setAnimFolderId] = useState<string | null>(null);
 
+  const allProfilesRef = useRef<ApiProfile[]>([]); 
   const slicesRef = useRef<ApiSlice[]>([]);
   const configRef = useRef<AppSettings | null>(null);
   const hoveredMainRef = useRef<string | null>(null);
   const hoveredChildRef = useRef<string | null>(null);
   const summonTimeRef = useRef<number>(0);
 
+  useEffect(() => { allProfilesRef.current = allProfiles; }, [allProfiles]);
   useEffect(() => { slicesRef.current = slices; }, [slices]);
   useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => { hoveredMainRef.current = hoveredMainId; }, [hoveredMainId]);
@@ -66,29 +71,45 @@ export default function ActionRing() {
   const DEAD_ZONE = config?.deadzone || 30;
 
   const activeTheme = THEMES[config?.theme || "dark"] || THEMES.dark;
+  const switchAnimStyle = config?.switchAnimStyle || "none"; 
+
+  const isSummoning = Date.now() - summonTimeRef.current < 500;
+  const effAnimSpeed = (isSummoning && switchAnimStyle === "spring") ? "spring" : config?.animSpeed;
 
   let animClass = "";
-  switch (config?.animSpeed) {
-    case "instant": 
-      animClass = "transition-none"; 
-      break;
-    case "fast": 
-      animClass = isVisible 
-        ? "scale-100 transition-all duration-150 ease-out" 
-        : "scale-90 transition-all duration-150 ease-in"; 
-      break;
-    case "smooth": 
-      animClass = isVisible 
-        ? "scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" 
-        : "scale-75 blur-sm transition-all duration-300 ease-in"; 
-      break;
-    case "spring": 
-      animClass = isVisible 
-        ? "animate-spring-custom" 
-        : "scale-50 transition-all duration-200 ease-in"; 
-      break;
-    default: 
-      animClass = isVisible ? "scale-100" : "scale-95 transition-all duration-150";
+  switch (effAnimSpeed) {
+    case "instant": animClass = "transition-none"; break;
+    case "fast": animClass = isVisible ? "scale-100 transition-all duration-150 ease-out" : "scale-90 transition-all duration-150 ease-in"; break;
+    case "smooth": animClass = isVisible ? "scale-100 blur-0 transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)" : "scale-75 blur-sm transition-all duration-300 ease-in"; break;
+    case "spring": animClass = isVisible ? "animate-spring-custom" : "scale-50 transition-all duration-200 ease-in"; break;
+    default: animClass = isVisible ? "scale-100" : "scale-95 transition-all duration-150";
+  }
+
+  // 💥 2. ระบบจัดการ Class อนิเมชันแบบเป๊ะๆ
+  let wrapperClasses = "w-full h-full relative transform ";
+
+  if (!isVisible) {
+      wrapperClasses += "opacity-0 pointer-events-none " + animClass;
+  } else if (isSwitching) {
+      wrapperClasses += "opacity-0 pointer-events-none ";
+      switch (switchAnimStyle) {
+          case "cyber-spin": wrapperClasses += "scale-75 blur-sm transition-all duration-200 ease-in"; break;
+          case "quantum-pop": wrapperClasses += "scale-50 transition-all duration-150 ease-in"; break;
+          case "smooth": case "fade": case "fade-slide": wrapperClasses += "scale-90 blur-md transition-all duration-200 ease-in"; break;
+      }
+  } else {
+      wrapperClasses += "opacity-100 pointer-events-auto ";
+      if (isSummoning) {
+          wrapperClasses += animClass;
+      } else {
+          wrapperClasses += "scale-100 blur-0 "; // ล็อกให้กาง 100%
+          switch (switchAnimStyle) {
+              case "cyber-spin": wrapperClasses += "transition-all duration-200 ease-out"; break;
+              case "quantum-pop": wrapperClasses += "transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1)"; break;
+              // 💥 Smooth ตอนกลับมา: เฟดกลับมานุ่มๆ
+              case "smooth": case "fade": case "fade-slide": wrapperClasses += "transition-all duration-300 ease-out"; break;
+          }
+      }
   }
 
   const loadData = async () => {
@@ -157,39 +178,89 @@ export default function ActionRing() {
     loadData();
     const unlistenShow = listen("ring:show", (event: any) => {
       const { local_x, local_y } = event.payload || { local_x: -1000, local_y: -1000 };
+      
       setIsVisible(false); 
-      loadData(); 
+      setIsSwitching(false); 
+      setNoTransition(false);
+      setSpinDeg(0); 
       setHoveredMainId(null); 
       setHoveredChildId(null); 
       setClickedId(null);
+      setAnimFolderId(null);
+      
+      loadData(); 
       summonTimeRef.current = Date.now(); 
       
-      // 💥 [หัวใจสำคัญ] แยกระบบ Windows กับ Mac
-      if (isWindows) {
-        // บน Windows: หน้าต่างเรามีขนาด 800x800 คงที่ 
-        // ดังนั้นบังคับให้จุดศูนย์กลางของวงแหวนอยู่ที่พิกัด x:400, y:400 เสมอ!
-        setCenter({ x: 400, y: 400 });
-      } else {
-        // บน Mac: หน้าต่างกางเต็มจอ ให้ใช้พิกัดเมาส์ที่รับมาจาก Rust
-        setCenter({ x: local_x, y: local_y });
-      }
+      if (isWindows) setCenter({ x: 400, y: 400 });
+      else setCenter({ x: local_x, y: local_y });
 
       setAnimKey(k => k + 1);
       requestAnimationFrame(() => setIsVisible(true));
     });
     
-    const unlistenHide = listen("ring:hide", () => { setIsVisible(false); setCenter({ x: -1000, y: -1000 }); setHoveredMainId(null); setHoveredChildId(null); setTempProfileId(null); });
+    const unlistenHide = listen("ring:hide", () => { 
+      setIsVisible(false); 
+      setIsSwitching(false); 
+      setCenter({ x: -1000, y: -1000 }); 
+      setHoveredMainId(null); 
+      setHoveredChildId(null); 
+      setAnimFolderId(null);
+      setTempProfileId(null); 
+      setSpinDeg(0); 
+    });
+    
     const unlistenKeyReleased = listen("ring:key_released", () => {
       if (Date.now() - summonTimeRef.current < 200) return; 
       if (configRef.current?.triggerMode === "release") executeAction(hoveredMainRef.current, hoveredChildRef.current);
     });
-    const unlistenSwitchProfile = listen<string>("switch_profile", (event) => { setTempProfileId(event.payload); setHoveredMainId(null); setHoveredChildId(null); setClickedId(null); setAnimKey(k => k + 1); });
+
+    const unlistenSwitchProfile = listen<string>("switch_profile", (event) => { 
+      const style = configRef.current?.switchAnimStyle || "none";
+      const targetId = event.payload;
+
+      const applyNewProfile = () => {
+        const profiles = allProfilesRef.current;
+        const active = targetId ? profiles.find(p => p.id === targetId) : profiles.find(p => p.isDefault);
+        if (active) setSlices(active.slices);
+        setTempProfileId(targetId);
+      };
+
+      if (style === "none") {
+        setNoTransition(true); 
+        applyNewProfile(); 
+        setAnimKey(k => k + 1); 
+        setTimeout(() => setNoTransition(false), 50);
+        return;
+      }
+
+      setIsSwitching(true);
+      setHoveredMainId(null); 
+      setHoveredChildId(null); 
+      setClickedId(null); 
+      setAnimFolderId(null);
+      
+      let outDuration = 150;
+      if (style === "cyber-spin") {
+        outDuration = 200; 
+        setSpinDeg(prev => prev + 90); // 💥 สั่งบวกเพิ่มไปเรื่อยๆ
+      } else if (style === "smooth" || style === "fade" || style === "fade-slide") {
+        outDuration = 200;
+      }
+      
+      setTimeout(() => {
+        applyNewProfile(); 
+        setIsSwitching(false);
+        if (style === "cyber-spin") {
+           setSpinDeg(prev => prev + 90); // 💥 ขากลับก็บวกเพิ่มไปทิศเดิม ไม่หักล้าง
+        }
+      }, outDuration);
+    });
 
     return () => { unlistenShow.then(f => f()); unlistenHide.then(f => f()); unlistenKeyReleased.then(f => f()); unlistenSwitchProfile.then(f => f()); };
   }, []);
 
   useEffect(() => {
-    if (!isVisible || clickedId !== null) return;
+    if (!isVisible || clickedId !== null || isSwitching) return; 
 
     let isPolling = false;
     const timer = setInterval(async () => {
@@ -239,11 +310,11 @@ export default function ActionRing() {
     }, 16); 
 
     return () => clearInterval(timer);
-  }, [slices, hoveredMainId, clickedId, center, isVisible, DEAD_ZONE, R_MAIN, scaleMult]);
-
+  }, [slices, hoveredMainId, clickedId, center, isVisible, isSwitching, DEAD_ZONE, R_MAIN, scaleMult]); 
 
   const closeRing = () => {
     setIsVisible(false);
+    setIsSwitching(false);
 
     let delay = 0;
     switch (configRef.current?.animSpeed) {
@@ -258,7 +329,10 @@ export default function ActionRing() {
       setCenter({ x: -1000, y: -1000 });
       setHoveredMainId(null);
       setHoveredChildId(null);
+      setAnimFolderId(null);
       setTempProfileId(null);
+      setSpinDeg(0); 
+      setNoTransition(false);
     }, delay);
   };
 
@@ -272,8 +346,12 @@ export default function ActionRing() {
     >
       <div 
         key={animKey} 
-        className={`w-full h-full relative ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"} ${animClass}`}
-        style={{ transformOrigin: `${center.x}px ${center.y}px` }}
+        className={wrapperClasses} 
+        style={{ 
+          transformOrigin: `${center.x}px ${center.y}px`,
+          // 💥 ใช้ CSS property 'rotate' แทน ไม่ตีกับ Tailwind 'transform' ทำให้บวกเพิ่มได้เรื่อยๆ
+          ...(switchAnimStyle === 'cyber-spin' ? { rotate: `${spinDeg}deg` } as React.CSSProperties : {}) 
+        }} 
       >
         
         <div className="absolute flex items-center justify-center rounded-full bg-zinc-900/80 border border-white/10"
@@ -281,19 +359,24 @@ export default function ActionRing() {
           <LucideIcons.X size={24 * scaleMult} strokeWidth={3} className="text-red-500" />
         </div>
 
-        {/* ─── วงแหวนหลัก (Main Slices) ─── */}
         {slices.map((slice, i) => {
           const angle = -Math.PI / 2 + (i * 2 * Math.PI) / slices.length;
-          const animType = config?.animSpeed || "spring";
+          const animType = effAnimSpeed || "spring";
           const targetX = center.x + R_MAIN * Math.cos(angle); const targetY = center.y + R_MAIN * Math.sin(angle);
           const nx = animType === "spring" ? (isVisible ? targetX : center.x) : targetX;
           const ny = animType === "spring" ? (isVisible ? targetY : center.y) : targetY;
 
           let itemTransition = "";
-          if (animType === "instant") itemTransition = "none";
-          if (animType === "fast")    itemTransition = "all 0.15s ease-out";
-          if (animType === "smooth")  itemTransition = "all 0.3s ease-in-out";
-          if (animType === "spring")  itemTransition = "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)";
+          if (noTransition) {
+            itemTransition = "none";
+          } else {
+            if (animType === "instant") itemTransition = "none";
+            if (animType === "fast")    itemTransition = "all 0.15s ease-out";
+            if (animType === "smooth")  itemTransition = "all 0.3s ease-in-out";
+            if (animType === "spring")  itemTransition = "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)";
+          }
+
+          const animDelay = (isVisible && animType === "spring" && isSummoning && !noTransition) ? `${i * 30}ms` : "0ms";
 
           const active = hoveredMainId === slice.id;
           const isClicked = clickedId === slice.id;
@@ -305,7 +388,7 @@ export default function ActionRing() {
               {slice.actionType === "folder" && (
                 <div className="absolute pointer-events-none flex items-center justify-center z-20"
                      style={{ left: center.x + (R_MAIN + 40 * scaleMult) * Math.cos(angle), top: center.y + (R_MAIN + 40 * scaleMult) * Math.sin(angle), transform: "translate(-50%, -50%)",
-                              opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0, transition: itemTransition, transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms" }}>
+                              opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0, transition: itemTransition, transitionDelay: animDelay }}>
                   <LucideIcons.ChevronRight size={(active ? 24 : 18) * scaleMult} strokeWidth={4} className={`duration-200 ${active ? "text-white drop-shadow-md" : "text-zinc-500/80"}`} style={{ transform: `rotate(${angle * (180 / Math.PI)}deg)` }} />
                 </div>
               )}
@@ -315,7 +398,7 @@ export default function ActionRing() {
                             opacity: isVisible ? (clickedId !== null && clickedId !== slice.id ? 0.2 : 1) : 0,
                             backgroundColor: active ? (slice.color || "#6366f1") : ("#e4e4e7"), 
                             color: active ? "white" : "#3f3f46",
-                            zIndex: active ? 30 : 20, transition: itemTransition, transitionDelay: (isVisible && animType === "spring") ? `${i * 30}ms` : "0ms" }}>
+                            zIndex: active ? 30 : 20, transition: itemTransition, transitionDelay: animDelay }}>
                 <Icon size={active ? 28 * scaleMult : 22 * scaleMult} strokeWidth={active ? 2.5 : 3} />
               </div>
               
@@ -327,7 +410,6 @@ export default function ActionRing() {
           );
         })}
 
-        {/* ─── 💥 วงแหวนย่อย (Sub Slices) โฟลเดอร์เด้งสมูทๆ 💥 ─── */}
         {slices.map((folder, folderIdx) => {
           if (folder.actionType !== 'folder') return null;
           const children = folder.children || [];
@@ -355,12 +437,16 @@ export default function ActionRing() {
                 const Icon = (LucideIcons as any)[child.icon || "Zap"] || LucideIcons.Zap;
                 const size = isClicked ? NODE_SIZE_CHILD - (10 * scaleMult) : active ? NODE_SIZE_CHILD_HOV : NODE_SIZE_CHILD;
 
-                const animType = config?.animSpeed || "spring";
+                const animType = effAnimSpeed || "spring";
                 let itemTransition = "";
-                if (animType === "instant") itemTransition = "none";
-                if (animType === "fast")    itemTransition = "all 0.15s ease-out";
-                if (animType === "smooth")  itemTransition = "all 0.3s ease-in-out";
-                if (animType === "spring")  itemTransition = "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)";
+                if (noTransition) {
+                  itemTransition = "none";
+                } else {
+                  if (animType === "instant") itemTransition = "none";
+                  if (animType === "fast")    itemTransition = "all 0.15s ease-out";
+                  if (animType === "smooth")  itemTransition = "all 0.3s ease-in-out";
+                  if (animType === "spring")  itemTransition = "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)";
+                }
 
                 const currentX = isFolderOpen ? targetNx : parentX;
                 const currentY = isFolderOpen ? targetNy : parentY;
@@ -379,7 +465,7 @@ export default function ActionRing() {
                            backgroundColor: active && isFolderOpen ? (child.color || "#6366f1") : ( "#f4f4f5"), 
                            color: active && isFolderOpen ? "white" :  "#3f3f46",
                            transition: itemTransition,
-                           transitionDelay: (isFolderOpen && animType === "spring") ? `${i * 30}ms` : "0ms" 
+                           transitionDelay: (isFolderOpen && animType === "spring" && !noTransition) ? `${i * 30}ms` : "0ms" 
                          }}>
                       <Icon size={active && isFolderOpen ? 26 * scaleMult : 20 * scaleMult} strokeWidth={active && isFolderOpen ? 2.5 : 3} />
                     </div>

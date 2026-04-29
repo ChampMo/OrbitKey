@@ -48,7 +48,7 @@ pub struct Profile {
 
 // 🔥 [เพิ่มใหม่: สำหรับเก็บการตั้งค่าแอป] 🔥
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub global_hotkey: String,
     pub start_with_os: bool,
@@ -60,6 +60,7 @@ pub struct AppSettings {
     pub center_action: String,
     #[serde(default = "default_theme")]
     pub theme: String,
+    pub switch_anim_style: String,
 }
 
 fn default_theme() -> String {
@@ -79,6 +80,7 @@ impl Default for AppSettings {
             deadzone: 30,
             center_action: "close".to_string(),
             theme: "dark".to_string(),
+            switch_anim_style: "fade-slide".to_string(),
         }
     }
 }
