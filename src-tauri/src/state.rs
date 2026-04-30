@@ -80,7 +80,7 @@ impl Default for AppSettings {
             deadzone: 30,
             center_action: "close".to_string(),
             theme: "dark".to_string(),
-            switch_anim_style: "fade-slide".to_string(),
+            switch_anim_style: "quantum-pop".to_string(),
         }
     }
 }
