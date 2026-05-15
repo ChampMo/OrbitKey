@@ -19,7 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--hidden"]),
+            Some(vec!["--hidden"]), // 💥 ส่งพารามิเตอร์นี้มาตอนเปิดเครื่องอัตโนมัติ
         ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
@@ -28,6 +28,15 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .manage(state::AppState::default())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // เมื่อมีการพยายามเปิดแอปซ้ำ (เปิดโปรเซสที่ 2)
+            // ให้ดึงหน้าต่าง Control Panel (ชื่อ "main") ที่เปิดซ่อนอยู่ขึ้นมาโชว์แทน
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize(); // เลิกย่อหน้าต่าง
+                let _ = window.show();       // แสดงหน้าต่าง
+                let _ = window.set_focus();  // ดึงมาไว้หน้าสุด
+            }
+        }))
         .setup(|app| {
             // ==========================================================
             // 🌟 1. สร้าง Tray Icon & Menu (System Tray / Menu Bar)
@@ -83,6 +92,19 @@ pub fn run() {
             }
 
             // ==========================================================
+            // 👻 2.5 ดักจับ Run in Background (ซ่อนหน้าต่างตอนบูตเครื่อง)
+            // ==========================================================
+            if let Ok(settings) = crate::state::load_settings(app.handle()) {
+                let args: Vec<String> = std::env::args().collect();
+                // เช็กว่าตั้งให้ซ่อนไหม และ ถูกเปิดจากระบบ OS (มีคำว่า --hidden) ไหม
+                if settings.start_hidden && args.contains(&"--hidden".to_string()) {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide(); // สั่งซ่อนหน้าต่างหลักเงียบๆ
+                    }
+                }
+            }
+
+            // ==========================================================
             // 🍏 3. ตั้งค่า macOS เป็น Accessory (ซ่อนจาก Dock)
             // ==========================================================
             #[cfg(target_os = "macos")]
@@ -97,7 +119,6 @@ pub fn run() {
                     let _ = ring_window.set_fullscreen(false);
                     let _ = ring_window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 800, height: 800 }));
                     let _ = ring_window.set_decorations(false);
-                    // 💥 ลบบรรทัด set_transparent ทิ้งไปได้เลยครับ เพราะตั้งใน tauri.conf.json แล้ว
                 }
                 #[cfg(target_os = "macos")]
                 {

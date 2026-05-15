@@ -79,6 +79,7 @@ interface AppSettings {
   centerAction: string; 
   theme: ThemeId;
   switchAnimStyle: string;
+  startHidden: boolean;
 }
 
 

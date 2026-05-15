@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HardDrive, Power, Download, Loader2, Upload, AlertTriangle, CheckCircle2, X, RotateCcw, RefreshCw } from "lucide-react";
+import { HardDrive, Power, Download, Loader2, Upload, AlertTriangle, CheckCircle2, X, RotateCcw, RefreshCw, EyeOff } from "lucide-react";
 import { AppSettings } from "../SettingsPanel";
 import { invoke } from "@tauri-apps/api/core";
 import { ThemeStyle } from "../Theme";
@@ -22,24 +22,18 @@ export default function SystemDataSettings({
   const [availableUpdate, setAvailableUpdate] = useState<any>(null);
   const [appVersion, setAppVersion] = useState<string>('...');
 
-  // ดึงเลขเวอร์ชันปัจจุบันจาก tauri.conf.json
   useEffect(() => {
     getVersion().then((version) => {
       setAppVersion(version);
     }).catch(console.error);
   }, []);
   
-  // เช็คอัปเดตอัตโนมัติตอนเปิดหน้าต่าง
   useEffect(() => {
     const autoCheck = async () => {
       try {
         const update = await check();
-        if (update) {
-          setAvailableUpdate(update);
-        }
-      } catch (e) {
-        console.error("Update check failed:", e);
-      }
+        if (update) setAvailableUpdate(update);
+      } catch (e) { console.error("Update check failed:", e); }
     };
     autoCheck();
   }, []);
@@ -73,9 +67,7 @@ export default function SystemDataSettings({
   };
 
   const [alertConfig, setAlertConfig] = useState<{isOpen: boolean, title?: string, message: string, type: 'error' | 'success' | 'info'}>({
-    isOpen: false,
-    message: '',
-    type: 'info'
+    isOpen: false, message: '', type: 'info'
   });
 
   const handleUpdate = async () => {
@@ -87,10 +79,8 @@ export default function SystemDataSettings({
       console.error(e);
       setIsUpdating(false);
       setAlertConfig({
-        isOpen: true,
-        title: "Update Failed",
-        message: "Failed to download or install the update. Please check your connection and try again.",
-        type: 'error'
+        isOpen: true, title: "Update Failed",
+        message: "Failed to download or install the update. Please check your connection and try again.", type: 'error'
       });
     }
   };
@@ -101,39 +91,26 @@ export default function SystemDataSettings({
       if (update) {
         setAvailableUpdate(update);
         setAlertConfig({
-          isOpen: true,
-          title: "Update Found!",
-          message: `New version v${update.version} is ready to fly. Click Update to install.`,
-          type: 'success'
+          isOpen: true, title: "Update Found!",
+          message: `New version v${update.version} is ready to fly. Click Update to install.`, type: 'success'
         });
       } else {
         setAlertConfig({
-          isOpen: true,
-          title: "Up to Date",
-          message: `OrbitKey v${appVersion} is already the latest version. You're good to go! 🛰️`,
-          type: 'success'
+          isOpen: true, title: "Up to Date",
+          message: `OrbitKey v${appVersion} is already the latest version. You're good to go! 🛰️`, type: 'success'
         });
       }
     } catch (e) {
       setAlertConfig({
-        isOpen: true,
-        title: "Check Failed",
-        message: "Oops! We couldn't reach the update server. Please check your internet.",
-        type: 'error'
+        isOpen: true, title: "Check Failed",
+        message: "Oops! We couldn't reach the update server. Please check your internet.", type: 'error'
       });
     }
-  };
-
-  const handleToggleStartWithOS = () => {
-    // 💥 สังเกตว่าผมแก้จาก config.startWithOS เป็น config.startWithOs นะครับ
-    const newConfig = { ...config, startWithOs: !config.startWithOs };
-    setConfig(newConfig); 
   };
 
   return (
     <div className={`border rounded-2xl p-6 space-y-6 transition-colors duration-500 ${activeTheme.isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
       
-      {/* --- Factory Reset Popup --- */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetConfirm(false)} />
@@ -158,13 +135,11 @@ export default function SystemDataSettings({
         </div>
       )}
 
-      {/* --- Header --- */}
       <div className={`flex items-center justify-between border-b pb-4 ${activeTheme.isDark ? 'border-white/10' : 'border-black/10'}`}>
         <div className="flex items-center gap-3">
           <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><HardDrive size={20} /></div>
           <div className="flex items-center gap-3">
              <h3 className="text-md font-bold text-current">System & Data</h3>
-             {/* 💥 ป้ายโชว์เวอร์ชันแอป */}
              <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full border ${
                activeTheme.isDark ? 'bg-white/10 border-white/5 text-white/60' : 'bg-black/5 border-black/5 text-black/60'
              }`}>
@@ -180,82 +155,84 @@ export default function SystemDataSettings({
       </div>
 
       <div className="space-y-6">
-        {/* --- แถวที่ 1: Software Update --- */}
+        {/* --- Software Update --- */}
         <div 
           className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-500 ${
             availableUpdate ? 'shadow-inner' : 'bg-transparent'
           } ${activeTheme.border}`}
-          style={availableUpdate ? { 
-            backgroundColor: `${activeTheme.accentColor}10`, 
-            borderColor: `${activeTheme.accentColor}40` 
-          } : {}}
+          style={availableUpdate ? { backgroundColor: `${activeTheme.accentColor}10`, borderColor: `${activeTheme.accentColor}40` } : {}}
         >
           <div className="flex items-center gap-3 text-current">
-            <div 
-              className={`p-2 rounded-xl transition-colors ${availableUpdate ? '' : 'opacity-40'}`}
-              style={availableUpdate ? { backgroundColor: `${activeTheme.accentColor}20` } : {}}
-            >
-              <RefreshCw 
-                size={18} 
-                className={`${availableUpdate ? `${activeTheme.accentText} animate-spin-slow` : 'text-current'}`} 
-              />
+            <div className={`p-2 rounded-xl transition-colors ${availableUpdate ? '' : 'opacity-40'}`} style={availableUpdate ? { backgroundColor: `${activeTheme.accentColor}20` } : {}}>
+              <RefreshCw size={18} className={`${availableUpdate ? `${activeTheme.accentText} animate-spin-slow` : 'text-current'}`} />
             </div>
-
             <div>
               <div className="flex items-center gap-2">
-                <label className={`block text-sm font-semibold opacity-90 ${activeTheme.text}`}>
-                  Software Update
-                </label>
-                {availableUpdate && (
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                )}
+                <label className={`block text-sm font-semibold opacity-90 ${activeTheme.text}`}>Software Update</label>
+                {availableUpdate && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />}
               </div>
-              {/* 💥 โชว์เวอร์ชันเปรียบเทียบตรงนี้ */}
               <p className={`text-[10px] font-medium opacity-60 mt-0.5 ${activeTheme.text}`}>
-                {availableUpdate 
-                  ? `Current: v${appVersion} → New: v${availableUpdate.version}` 
-                  : `OrbitKey v${appVersion} is up to date.`}
+                {availableUpdate ? `Current: v${appVersion} → New: v${availableUpdate.version}` : `OrbitKey v${appVersion} is up to date.`}
               </p>
             </div>
           </div>
-
           <button
-            type="button"
-            disabled={isUpdating}
-            onClick={availableUpdate ? handleUpdate : manualCheck}
+            type="button" disabled={isUpdating} onClick={availableUpdate ? handleUpdate : manualCheck}
             className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
               isUpdating ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'
-            } ${
-              availableUpdate 
-                ? activeTheme.primaryBtn 
-                : `${activeTheme.isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} opacity-60`
-            }`}
+            } ${availableUpdate ? activeTheme.primaryBtn : `${activeTheme.isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} opacity-60`}`}
           >
-            {isUpdating ? (
-              <><Loader2 size={14} className="animate-spin" /> Updating...</>
-            ) : (
-              availableUpdate ? 'Update' : 'Check Update'
-            )}
+            {isUpdating ? <><Loader2 size={14} className="animate-spin" /> Updating...</> : (availableUpdate ? 'Update' : 'Check Update')}
           </button>
         </div>
 
-        {/* --- แถวที่ 2: Start with OS --- */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-current">
-            <Power size={18} className="opacity-50" />
-            <div>
-              <label className="block text-sm font-semibold opacity-90">Start with OS</label>
-              <p className="text-[10px] opacity-60 mt-0.5">Launch automatically on startup.</p>
+        {/* 💥 --- Start with OS & Run in Background --- 💥 */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 text-current">
+              <Power size={18} className={`transition-colors duration-300 ${config.startWithOs ? 'opacity-80 text-emerald-500' : 'opacity-40'}`} />
+              <div>
+                <label className="block text-sm font-semibold opacity-90">Start with OS</label>
+                <p className="text-[10px] opacity-60 mt-0.5">Launch automatically on computer startup.</p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, startWithOs: !config.startWithOs })}
+              className={`w-11 h-6 rounded-full transition-colors relative ${config.startWithOs ? "bg-emerald-500" : (activeTheme.isDark ? "bg-white/20" : "bg-black/20")}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${config.startWithOs ? "left-6" : "left-1"}`} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleToggleStartWithOS}
-            className={`w-11 h-6 rounded-full transition-colors relative ${config.startWithOs ? "bg-emerald-500" : (activeTheme.isDark ? "bg-white/20" : "bg-black/20")}`}
-          >
-            {/* 💥 ตรงนี้ก็แก้เป็น config.startWithOs ด้วยครับ */}
-            <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${config.startWithOs ? "left-6" : "left-1"}`} />
-          </button>
+
+          {/* Sub-option: Run in Background (โชว์เฉพาะตอนเปิด Start with OS) */}
+          <div className={`flex items-center justify-between pl-[42px] overflow-hidden transition-all duration-300 ${config.startWithOs ? "max-h-12 opacity-100 mt-1" : "max-h-0 opacity-0 pointer-events-none mt-0"}`}>
+            <div className="flex items-center gap-3 text-current">
+              
+              {/* ✨ เส้นนำสายตา (Vertical Line) ✨ */}
+              <div className={`w-1 h-8 rounded-full transition-all duration-300 ${
+                config.startHidden 
+                  ? 'bg-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]' // สีเขียวเรืองแสงตอนเปิด
+                  : (activeTheme.isDark ? 'bg-white/10' : 'bg-black/10') // สีกลืนไปกับธีมตอนปิด
+              }`} />
+
+              {/* ไอคอนที่สว่างขึ้นตอนถูกเปิด */}
+              <EyeOff size={14} className={`transition-colors duration-300 ${config.startHidden ? 'opacity-80 text-emerald-500' : 'opacity-40'}`} />
+              
+              <div>
+                <label className="block text-xs font-semibold opacity-80">Run in Background</label>
+                <p className="text-[9px] opacity-50 mt-0.5">Start silently to system tray (hide control panel).</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, startHidden: !config.startHidden })}
+              className={`w-9 h-5 rounded-full transition-colors relative ${config.startHidden ? "bg-emerald-500" : (activeTheme.isDark ? "bg-white/20" : "bg-black/20")}`}
+            >
+              <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all ${config.startHidden ? "left-[18px]" : "left-[3px]"}`} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -269,14 +246,7 @@ export default function SystemDataSettings({
         <button type="button" onClick={() => setShowResetConfirm(true)} className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded-xl text-sm font-bold text-red-500 transition-all active:scale-[0.98]"><AlertTriangle size={16} /> Factory Reset</button>
       </div>
 
-      <Alert 
-         isOpen={alertConfig.isOpen}
-         title={alertConfig.title}
-         message={alertConfig.message}
-         type={alertConfig.type}
-         activeTheme={activeTheme}
-         onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
-       />
+      <Alert isOpen={alertConfig.isOpen} title={alertConfig.title} message={alertConfig.message} type={alertConfig.type} activeTheme={activeTheme} onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })} />
     </div>
   );
 }

@@ -20,7 +20,8 @@ export interface AppSettings {
   deadzone: number;
   centerAction: string;
   theme: ThemeId;
-  switchAnimStyle: string
+  switchAnimStyle: string;
+  startHidden: boolean;
 }
 
 // 💥 แก้ไขฟังก์ชันให้รับ Props 💥

@@ -1,7 +1,7 @@
 /**
  * ActionRing.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Master Version: Perfect Centering + Folder Expand + Polished Switch Animations (Fixed Spin & Smooth)
+ * Master Version: Perfect Centering + Folder Expand + Polished Switch Animations (Fixed Spin Math!)
  */
 
 import { useEffect, useState, useRef, Fragment } from "react";
@@ -85,7 +85,6 @@ export default function ActionRing() {
     default: animClass = isVisible ? "scale-100" : "scale-95 transition-all duration-150";
   }
 
-  // 💥 2. ระบบจัดการ Class อนิเมชันแบบเป๊ะๆ
   let wrapperClasses = "w-full h-full relative transform ";
 
   if (!isVisible) {
@@ -102,11 +101,10 @@ export default function ActionRing() {
       if (isSummoning) {
           wrapperClasses += animClass;
       } else {
-          wrapperClasses += "scale-100 blur-0 "; // ล็อกให้กาง 100%
+          wrapperClasses += "scale-100 blur-0 "; 
           switch (switchAnimStyle) {
               case "cyber-spin": wrapperClasses += "transition-all duration-200 ease-out"; break;
               case "quantum-pop": wrapperClasses += "transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1)"; break;
-              // 💥 Smooth ตอนกลับมา: เฟดกลับมานุ่มๆ
               case "smooth": case "fade": case "fade-slide": wrapperClasses += "transition-all duration-300 ease-out"; break;
           }
       }
@@ -242,7 +240,7 @@ export default function ActionRing() {
       let outDuration = 150;
       if (style === "cyber-spin") {
         outDuration = 200; 
-        setSpinDeg(prev => prev + 90); // 💥 สั่งบวกเพิ่มไปเรื่อยๆ
+        setSpinDeg(prev => prev + 180); // 💥 แก้เป็น 180 เพื่อให้รวมกันได้ 360 (ไม่กลับหัว)
       } else if (style === "smooth" || style === "fade" || style === "fade-slide") {
         outDuration = 200;
       }
@@ -251,7 +249,7 @@ export default function ActionRing() {
         applyNewProfile(); 
         setIsSwitching(false);
         if (style === "cyber-spin") {
-           setSpinDeg(prev => prev + 90); // 💥 ขากลับก็บวกเพิ่มไปทิศเดิม ไม่หักล้าง
+           setSpinDeg(prev => prev + 180); // 💥 ขากลับหมุนอีก 180 รวมเป็น 1 รอบพอดี
         }
       }, outDuration);
     });
@@ -349,7 +347,6 @@ export default function ActionRing() {
         className={wrapperClasses} 
         style={{ 
           transformOrigin: `${center.x}px ${center.y}px`,
-          // 💥 ใช้ CSS property 'rotate' แทน ไม่ตีกับ Tailwind 'transform' ทำให้บวกเพิ่มได้เรื่อยๆ
           ...(switchAnimStyle === 'cyber-spin' ? { rotate: `${spinDeg}deg` } as React.CSSProperties : {}) 
         }} 
       >
