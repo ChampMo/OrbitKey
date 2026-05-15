@@ -57,10 +57,10 @@
     </tr>
     <tr>
       <td align="center" valign="top">
-        <video src="./docs/demo-summon.mp4" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
+        <video src="https://github.com/user-attachments/assets/c6922467-5804-4c0c-a765-63a51a7df7b5" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
       </td>
       <td align="center" valign="top">
-        <video src="./docs/demo-action.mp4" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
+        <video src="https://github.com/user-attachments/assets/19139ed4-0957-4c8b-b582-63bcba93d2f8" style="width: 100%; border-radius: 12px;" autoplay loop muted playsinline></video>
       </td>
     </tr>
   </table>
@@ -81,8 +81,6 @@ To achieve instinct-level speed, OrbitKey doesn't rely on standard HTML button h
 ---
 
 ## 🎨 Theme Customization
-
-> **💡 คำแนะนำสำหรับแชมป์:** ตรงนี้เอารูปตอนที่คุณเปลี่ยนสีแอป (แคปหน้า Control Panel ในโหมด Dark Mode รูปนึง เทียบกับโหมด Peach Milk หรือสีสว่างๆ อีกรูปนึงครับ)
 
 <div align="center">
   <table>
